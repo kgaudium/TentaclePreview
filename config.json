@@ -5,7 +5,7 @@
   "filter_branches": ["exclude-this-branch"],
   "branches_dir": "branches",
   "commands": {
-    "start": "npm start",
+    "start": "npm start -- -H {host} -p {port}",
     "build": [
       "npm install",
       "npm run build"
@@ -14,7 +14,12 @@
       ""
     ]
   },
+  "expose": {
+    "enabled": true,
+    "port": "auto",
+    "host": "127.0.0.1"
+  },
   "webhook_update": true,
   "auto_add_webhook": true,
-  "enables_log_levels": ["all"]
+  "enabled_log_levels": ["all"]
 }
