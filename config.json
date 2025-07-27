@@ -1,10 +1,20 @@
 {
-  "repo_url": "https://github.com/your/repo",
-  "github_token": null,
+  "repo_full_name": "nickname/repo",
+  "github_token": "token",
   "filter_mode": "exclude",
   "filter_branches": ["exclude-this-branch"],
   "branches_dir": "branches",
-  "clone_dir": "repo",
-  "start_command": "npm start",
-  "pre_start_commands": ["npm install", "npm run build"]
+  "commands": {
+    "start": "npm start",
+    "build": [
+      "npm install",
+      "npm run build"
+    ],
+    "update": [
+      ""
+    ]
+  },
+  "webhook_update": true,
+  "auto_add_webhook": true,
+  "enables_log_levels": ["all"]
 }

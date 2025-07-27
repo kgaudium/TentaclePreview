@@ -288,7 +288,7 @@ poetry.toml
 # ruff
 .ruff_cache/
 
-# LSP config files
+# LSP CONFIG files
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,flask,jetbrains,pycharm

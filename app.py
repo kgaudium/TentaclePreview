@@ -1,5 +1,7 @@
 from flask import Flask
-import json
+from TentaclePreview import output
+import time
+from TentaclePreview import tentacle_preview as tentacle
 
 app = Flask(__name__)
 
@@ -10,6 +12,6 @@ def hello_world():  # put application's code here
 
 
 if __name__ == '__main__':
-    config = json.load(open("config.json"))
+    tentacle.init()
 
-    app.run()
+    # app.run()

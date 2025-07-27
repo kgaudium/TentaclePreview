@@ -6,5 +6,6 @@ requires-python = ">=3.12"
 dependencies = [
     "flask>=3.1.1",
     "gitpython>=3.1.45",
+    "pygithub>=2.6.1",
     "requests>=2.32.4",
 ]
