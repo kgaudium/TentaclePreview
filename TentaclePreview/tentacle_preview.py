@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 from github import Github
 
-from TentaclePreview.branch_server import Tentacle
+from TentaclePreview.tentacle import Tentacle
 from TentaclePreview.git_utils import *
 from TentaclePreview import output
 
@@ -16,11 +16,12 @@ REPO: Repository | None = None
 def init_globals(config_path: str) -> None:
     global CONFIG, GITHUB_INSTANCE, REPO
     # TODO add try catches
+    # TODO add custom_commands: Dict["branch_name", "cmd_dict"]
     CONFIG = json.load(open(config_path))
 
     output.log(f"Configuration loaded from {config_path}", "success")
 
-    output.ENABLED_LOG_LEVELS = CONFIG["enables_log_levels"]
+    output.ENABLED_LOG_LEVELS = CONFIG["enabled_log_levels"]
     GITHUB_INSTANCE = Github(CONFIG["github_token"])
     REPO = GITHUB_INSTANCE.get_repo(CONFIG["repo_full_name"])
 
@@ -41,7 +42,22 @@ def init_tentacles() -> None:
 
 
 def start_tentacles() -> None:
-    pass
+    global TENTACLES_LIST
+
+    for tenty in TENTACLES_LIST:
+        tenty.build()
+        tenty.start()
+
+    for tenty in TENTACLES_LIST:
+        output.log(tenty, "header")
+
+
+
+def stop_tentacles() -> None:
+    global TENTACLES_LIST
+
+    for tenty in TENTACLES_LIST:
+        tenty.stop()
 
 
 def init_webhook() -> None:
@@ -55,4 +71,4 @@ def init(config_path: str = "./config.json"):
     init_tentacles()
 
     output.log(f"Tentacles Init Stage", "header")
-    output.log("Only init implemented yet", "error")
+    start_tentacles()
