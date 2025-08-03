@@ -1,11 +1,11 @@
 import os
 import platform
-import shlex
+import shutil
 import signal
-from pathlib import Path
-import subprocess
 import socket
-from typing import Dict, List
+import subprocess
+from pathlib import Path
+from typing import Dict, List, Literal
 
 from git import Repo
 from github.Branch import Branch
@@ -41,19 +41,23 @@ class Tentacle:
 
         self.is_build_success: bool | None = None
         self.is_start_success: bool | None = None
-        self.build_error: str | None = None
-        self.start_error: str | None = None
+        self.build_output: List[Dict[Literal["command", "output"], str]] = []
+        self.start_output: str | None = None
 
         if self.path.exists():
             self._load_repo_from_path()
         else:
             self._clone_repo_from_remote()
 
-
     def _load_repo_from_path(self):
         log(f"Found existing folder for branch '{self.name}'. Attempting to load...")
         try:
             self.local_repo = Repo(self.path)
+            self.local_repo.refs[self.name].checkout(True)
+            if self.update_required:
+                log(f"Updating '{self.name}'")
+                self._fetch_remote()
+
             log(f"Successfully loaded branch '{self.name}'.", "success")
         except Exception as e:
             log(f"Failed to load local repository for branch '{self.name}': {e}", "error")
@@ -63,7 +67,7 @@ class Tentacle:
         log(f"Cloning branch '{self.name}' from remote...")
         try:
             self.local_repo = Repo.clone_from(
-                self.repo_url,
+                self._repo_url,
                 self.path,
                 branch=self.name,
                 depth=1,
@@ -79,11 +83,27 @@ class Tentacle:
         self.stop()
 
         log(f"Updating tentacle '{self.name}'...")
-        self.local_repo.git.fetch("--all", "--force", "--prune", progress=progress)
+        if not self.path.exists() or self.local_repo is None:
+            self._clone_repo_from_remote()
+        else:
+            self._fetch_remote()
         log(f"Tentacle '{self.name}' fetched!", "success")
 
         self.build()
         self.start()
+
+    def _fetch_remote(self):
+        log(f"Fetching tentacle '{self.name}'...")
+        self.local_repo.remote().fetch(progress=progress, force=True)
+        self.local_repo.remote().refs[self.name].checkout(True)
+        # self.local_repo.git.fetch("--all", "--force", "--prune")
+
+    def clear_files(self):
+        log(f"Deleting tentacle '{self.name}' files...", "warning")
+        if self._process is not None:
+            raise RuntimeError("Cannot delete tentacle files while its running")
+
+        shutil.rmtree(self.path)
 
     def _render_command(self, command: str) -> str:
         try:
@@ -100,7 +120,7 @@ class Tentacle:
             commands = [commands]
 
         self.is_build_success = True
-        self.build_error = None
+        self.build_output = []
 
         for raw_cmd in commands:
             if not raw_cmd.strip():
@@ -118,13 +138,16 @@ class Tentacle:
                     capture_output=True,
                     text=True,
                 )
+
                 if result.stdout:
                     log(f"'{cmd}' output:\n{result.stdout.strip()}", "info")
                 if result.stderr:
                     log(f"'{cmd}' errors:\n{result.stderr.strip()}", "warning")
+
+                self.build_output.append({"command": cmd, "output": result.stdout + "\n" + result.stderr})
             except subprocess.CalledProcessError as e:
                 self.is_build_success = False
-                self.build_error = e.stderr
+                self.build_output.append({"command": cmd, "output": str(e)})
                 log(f"Build step failed:\n{e.stderr}", "error")
                 break
 
@@ -138,19 +161,12 @@ class Tentacle:
             log(f"Tentacle '{self.name}' is already running.", status="warning")
             return
 
-        cmd = self._commands.get("start")
-        if not cmd:
+        raw_cmd = self._commands.get("start")
+        if not raw_cmd:
             log("No start command provided.", status="error")
             return
 
-        # Подготовка окружения для замены плейсхолдеров
-        context = {
-            "path": str(self.path),
-            "host": "127.0.0.1",
-            "port": str(self.port or 0),
-        }
-        if isinstance(cmd, str):
-            cmd = cmd.format(**context)
+        cmd = self._render_command(raw_cmd)
 
         is_windows = platform.system() == "Windows"
 
@@ -166,11 +182,11 @@ class Tentacle:
                 preexec_fn=os.setsid if not is_windows else None
             )
             self.is_start_success = True
-            self.start_error = None
+            self.start_output = None
             log(f"Tentacle '{self.name}' started.", status="success")
         except Exception as e:
             self.is_start_success = False
-            self.start_error = str(e)
+            self.start_output = str(e)
             log(f"Failed to start tentacle:\n{e}", status="error")
 
     def stop(self):
@@ -206,7 +222,7 @@ class Tentacle:
             return s.getsockname()[1]
 
     @property
-    def local_repo(self) -> Repo:
+    def local_repo(self) -> Repo | None:
         return self._local_repo
 
     @local_repo.setter
@@ -219,7 +235,7 @@ class Tentacle:
         return self._path
 
     @property
-    def repo_url(self) -> str | None:
+    def _repo_url(self) -> str | None:
         if self._remote_repo is None:
             return None
 
@@ -234,7 +250,7 @@ class Tentacle:
         if self.local_repo is None:
             return True
 
-        return self.remote_branch.commit.sha != self.local_repo.head.commit.sha
+        return self.remote_branch.commit.sha != self.local_repo.head.commit.hexsha
 
     @property
     def name(self) -> str:
@@ -256,6 +272,12 @@ class Tentacle:
     @host.setter
     def host(self, value: str) -> None:
         self._host = value
+
+    @property
+    def url(self) -> str | None:
+        if self._port is None:
+            return None
+        return f"{self._host}:{self._port}"
 
     @property
     def _command_context(self) -> Dict[str, str | int]:

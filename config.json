@@ -21,5 +21,6 @@
   },
   "webhook_update": true,
   "auto_add_webhook": true,
+  "clear_redundant_local_branches": true,
   "enabled_log_levels": ["all"]
 }
