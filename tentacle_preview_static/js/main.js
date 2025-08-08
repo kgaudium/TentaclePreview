@@ -13,19 +13,19 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(refreshData, 5000)
 })
 
-// function setupWebSocketListeners() {
-//   // Listen for status updates
-//   window.wsManager.on("status_update", (data) => {
-//     updateTentacleStatus(data.tentacle, data.build_status, data.start_status)
-//   })
-//
-//   // Listen for logs updates
-//   window.wsManager.on("logs_update", (data) => {
-//     if (data.tentacle === currentTentacle) {
-//       updateLogsContent(data.log_type, data.logs)
-//     }
-//   })
-// }
+function setupWebSocketListeners() {
+  // Listen for status updates
+  window.wsManager.on("status_update", (data) => {
+    updateTentacleStatus(data.tentacle, data.build_status, data.start_status)
+  })
+
+  // Listen for logs updates
+  window.wsManager.on("logs_update", (data) => {
+    if (data.tentacle === currentTentacle) {
+      updateLogsContent(data.log_type, data.logs)
+    }
+  })
+}
 
 function updateTentacleStatus(tentacleName, buildStatus, startStatus) {
   const row = document.querySelector(`tr[data-tentacle="${tentacleName}"]`)

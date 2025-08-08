@@ -4,9 +4,8 @@ import sys
 import threading
 from urllib.parse import urlparse
 import requests
-from flask import Flask, request, Response, jsonify
-
 from flask import Flask, request, Response, jsonify, render_template
+from flask_socketio import SocketIO, emit
 from TentaclePreview import output
 from TentaclePreview import tentacle_preview as tentacle
 
@@ -17,6 +16,71 @@ app = Flask(__name__, static_folder="tentacle_preview_static")
 def main_page():
     return render_template('index.html', tentacles=tentacle.TENTACLES_LIST)
 
+
+def setup_websocket(app):
+    """
+    Настраивает WebSocket для обмена статусами и логами тентаклей.
+    Возвращает socketio и функции для трансляции событий.
+    """
+    socketio = SocketIO(app, cors_allowed_origins="*")
+
+    @socketio.on('connect')
+    def on_connect():
+        output.log('WebSocket: client connected', 'info')
+        emit('connection_status', {'status': 'connected'})
+
+    @socketio.on('disconnect')
+    def on_disconnect():
+        output.log('WebSocket: client disconnected', 'info')
+
+    @socketio.on('request_status')
+    def on_request_status():
+        tentacles = [
+            {
+                'name': t.name,
+                'is_build_success': t.is_build_success,
+                'is_start_success': t.is_start_success
+            }
+            for t in tentacle.TENTACLES_LIST
+        ]
+        emit('status_update', {'tentacles': tentacles})
+
+    @socketio.on('request_logs')
+    def on_request_logs(data):
+        tentacle_name = data.get('tentacle')
+        log_type = data.get('log_type', 'build')
+
+        tenty = tentacle.get_tenty_by_name(tentacle_name)
+        if not tenty:
+            output.log(f'WebSocket: Tentacle "{tentacle_name}" not found', 'warning')
+            return
+
+        logs = get_tentacle_logs(tenty, log_type)
+        emit('logs_update', {
+            'tentacle': tentacle_name,
+            'log_type': log_type,
+            'logs': logs
+        })
+
+    def broadcast_status_update(name, build_status, start_status):
+        socketio.emit('status_update', {
+            'type': 'status_update',
+            'tentacle': name,
+            'build_status': build_status,
+            'start_status': start_status
+        })
+        output.log(f'Broadcast status: {name}, build={build_status}, start={start_status}', 'debug')
+
+    def broadcast_logs_update(name, log_type, logs):
+        socketio.emit('logs_update', {
+            'type': 'logs_update',
+            'tentacle': name,
+            'log_type': log_type,
+            'logs': logs
+        })
+        output.log(f'Broadcast logs: {name}, type={log_type}', 'debug')
+
+    return socketio, broadcast_status_update, broadcast_logs_update
 
 
 @app.route('/api/tentacles')
@@ -248,5 +312,8 @@ if __name__ == '__main__':
     else:
         threading.Thread(target=tentacle.init).start()
 
-    app.run(host="0.0.0.0", port=4999)
-
+    try:
+        socketio, broadcast_status_update, broadcast_logs_update = setup_websocket(app)
+        socketio.run(app, host="0.0.0.0", port=4999, allow_unsafe_werkzeug=True)
+    except Exception as e:
+        output.log(f"Failed to start server: {e}", "error")
