@@ -7,7 +7,7 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1><i class="bi bi-diagram-3"></i> Tentacles Dashboard</h1>
-            <button class="btn btn-outline-primary" onclick="refreshData()">
+            <button id="refreshButton" class="btn btn-outline-primary">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
         </div>
@@ -18,55 +18,16 @@
                     <table class="table table-hover" id="tentacles-table">
                         <thead class="table-dark">
                             <tr>
-                                <th scope="col">
-                                    <i class="bi bi-git"></i> Tentacle
-                                </th>
-                                <th scope="col">
-                                    <i class="bi bi-link-45deg"></i> Local URL
-                                </th>
-                                <th scope="col">
-                                    <i class="bi bi-hammer"></i> Build
-                                </th>
-                                <th scope="col">
-                                    <i class="bi bi-play-circle"></i> Start
-                                </th>
-                                <th scope="col">
-                                    <i class="bi bi-gear"></i> Actions
-                                </th>
+                                <th scope="col"><i class="bi bi-git"></i> Tentacle</th>
+                                <th scope="col"><i class="bi bi-link-45deg"></i> Local URL</th>
+                                <th scope="col"><i class="bi bi-hammer"></i> Build</th>
+                                <th scope="col"><i class="bi bi-play-circle"></i> Start</th>
+                                <th scope="col"><i class="bi bi-gear"></i> Actions</th>
+                                <th scope="col"><i class="bi bi-diagram-2"></i> Last commit</th>
                             </tr>
                         </thead>
                         <tbody id="tentacles-tbody">
-                            {% for tentacle in tentacles %}
-                            <tr data-tentacle="{{ tentacle.name }}">
-                                <td>
-                                    <a href="/tentacle/{{ tentacle.name }}/" class="text-decoration-none fw-bold">
-                                        <i class="bi bi-box-arrow-up-right"></i> {{ tentacle.name }}
-                                    </a>
-                                </td>
-                                <td>
-                                    <a href="http://{{ tentacle.url }}" target="_blank" class="text-muted text-decoration-none">
-                                        <i class="bi bi-globe"></i> {{ tentacle.url }}
-                                    </a>
-                                </td>
-                                <td>
-                                    <span class="badge status-badge" data-status="{{ 'success' if tentacle.is_build_success == True else 'danger' if tentacle.is_build_success == False else 'warning' }}">
-                                        <i class="bi bi-{{ 'check-circle' if tentacle.is_build_success == True else 'x-circle' if tentacle.is_build_success == False else 'clock' }}"></i>
-                                        {{ 'OK' if tentacle.is_build_success == True else 'FAIL' if tentacle.is_build_success == False else 'WAIT' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge status-badge" data-status="{{ 'success' if tentacle.is_start_success == True else 'danger' if tentacle.is_start_success == False else 'warning' }}">
-                                        <i class="bi bi-{{ 'check-circle' if tentacle.is_start_success == True else 'x-circle' if tentacle.is_start_success == False else 'clock' }}"></i>
-                                        {{ 'OK' if tentacle.is_start_success == True else 'FAIL' if tentacle.is_start_success == False else 'WAIT' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-info" onclick="viewLogs('{{ tentacle.name }}')">
-                                        <i class="bi bi-file-text"></i> Logs
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
+
                         </tbody>
                     </table>
                 </div>
@@ -100,29 +61,18 @@
                 </ul>
                 <div class="tab-content mt-3" id="logsTabContent">
                     <div class="tab-pane fade show active" id="build-logs" role="tabpanel">
-                        <!-- Build command subtabs will be inserted here -->
-                        <ul class="nav nav-pills nav-fill mb-3" id="buildCommandTabs" role="tablist">
-                            <!-- Dynamic build command tabs -->
-                        </ul>
-                        <div class="tab-content" id="buildCommandTabContent">
-                            <!-- Dynamic build command content -->
-                        </div>
+                        <ul class="nav nav-pills nav-fill mb-3" id="buildCommandTabs" role="tablist"></ul>
+                        <div class="tab-content" id="buildCommandTabContent"></div>
                     </div>
                     <div class="tab-pane fade" id="start-logs" role="tabpanel">
-                        <div class="logs-container">
-                            <pre id="start-logs-content" class="logs-content">
-                                <div class="text-center">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>
-                            </pre>
+                        <div class="logs-container" style="max-height:50vh; overflow:auto;">
+                            <pre id="start-logs-content" class="logs-content p-3"></pre>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" onclick="refreshLogs()">
+                <button id="refreshLogsBtn" type="button" class="btn btn-outline-secondary" onclick="if(currentTentacle){ loadLogs(currentTentacle,'build'); loadLogs(currentTentacle,'start'); }">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

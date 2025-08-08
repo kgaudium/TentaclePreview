@@ -1,123 +1,146 @@
-let currentTentacle = null
-let logsModal = null
-const bootstrap = window.bootstrap // Declare the bootstrap variable
+// main.js — структура WS-primary, HTTP fallback, построчная отправка логов на фронт.
+
+let logsModal = null;
+let currentTentacle = null;
+let socket = null;
+let wsConnected = false;
+const FALLBACK_POLL_INTERVAL_MS = 60_000; // резервный пул — 60s
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Initialize Bootstrap modal
-  logsModal = new bootstrap.Modal(document.getElementById("logsModal"))
+  logsModal = new bootstrap.Modal(document.getElementById("logsModal"));
 
-  // Setup WebSocket event listeners
-  // setupWebSocketListeners()
+  const refreshBtn = document.getElementById("refreshButton");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      refreshData();
+      initWebSocket(true); // переподключение WS по кнопке
+    });
+  }
 
-  // Auto-refresh data every 5 seconds
-  setInterval(refreshData, 5000)
-})
+  refreshData();
+  initWebSocket();
 
-// function setupWebSocketListeners() {
-//   // Listen for status updates
-//   window.wsManager.on("status_update", (data) => {
-//     updateTentacleStatus(data.tentacle, data.build_status, data.start_status)
-//   })
-//
-//   // Listen for logs updates
-//   window.wsManager.on("logs_update", (data) => {
-//     if (data.tentacle === currentTentacle) {
-//       updateLogsContent(data.log_type, data.logs)
-//     }
-//   })
-// }
+  setInterval(() => {
+    if (!wsConnected) {
+      refreshData();
+    }
+  }, FALLBACK_POLL_INTERVAL_MS);
+});
+
+/* HTTP helpers */
+
+async function apiGetTentacles() {
+  const resp = await fetch("/api/tentacles");
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  return json.tentacles || [];
+}
+
+async function apiGetLogs(tentacleName, logType) {
+  const resp = await fetch(`/api/tentacles/${encodeURIComponent(tentacleName)}/logs/${encodeURIComponent(logType)}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  return json.logs;
+}
+
+/* UI — таблица тентаклей */
+
+async function refreshData() {
+  const btn = document.getElementById("refreshButton");
+  const origDisabled = btn?.disabled ?? false;
+  const origHTML = btn?.innerHTML ?? null;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Refreshing...';
+  }
+
+  try {
+    const tentacles = await apiGetTentacles();
+    renderTentacleTable(tentacles);
+  } catch (err) {
+    console.error("refreshData error:", err);
+    showNotification("Error refreshing tentacles: " + err.message, "danger");
+  } finally {
+    if (btn) {
+      btn.disabled = origDisabled;
+      btn.innerHTML = origHTML;
+    }
+  }
+}
+
+function renderTentacleTable(tentacles) {
+  const tbody = document.getElementById("tentacles-tbody");
+  tbody.innerHTML = "";
+
+  for (const t of tentacles) {
+    const tr = document.createElement("tr");
+    tr.dataset.tentacle = t.name;
+
+    tr.innerHTML = `
+      <td>
+        <a href="/tentacle/${encodeURIComponent(t.name)}/" class="text-decoration-none fw-bold">
+          <i class="bi bi-box-arrow-up-right"></i> ${escapeHtml(t.name)}
+        </a>
+      </td>
+      <td>
+        <a href="http://${escapeHtml(t.url)}" target="_blank" class="text-muted text-decoration-none">
+          <i class="bi bi-globe"></i> ${escapeHtml(t.url)}
+        </a>
+      </td>
+      <td>${renderStatusBadge(t.is_build_success)}</td>
+      <td>${renderStatusBadge(t.is_start_success)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-info logs-btn" data-tentacle="${escapeHtml(t.name)}">
+          <i class="bi bi-file-text"></i> Logs
+        </button>
+      </td>
+      <td>${escapeHtml(t.last_commit || "")}</td>
+    `;
+
+    tbody.appendChild(tr);
+  }
+
+  tbody.querySelectorAll(".logs-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      viewLogs(btn.dataset.tentacle);
+    });
+  });
+}
+
+function renderStatusBadge(status) {
+  if (status === true) return `<span class="badge status-badge" data-status="success"><i class="bi bi-check-circle"></i> OK</span>`;
+  if (status === false) return `<span class="badge status-badge" data-status="danger"><i class="bi bi-x-circle"></i> FAIL</span>`;
+  return `<span class="badge status-badge" data-status="warning"><i class="bi bi-clock"></i> WAIT</span>`;
+}
 
 function updateTentacleStatus(tentacleName, buildStatus, startStatus) {
-  const row = document.querySelector(`tr[data-tentacle="${tentacleName}"]`)
-  if (!row) return
-
-  const buildBadge = row.querySelector("td:nth-child(3) .status-badge")
-  const startBadge = row.querySelector("td:nth-child(4) .status-badge")
-
-  if (buildBadge) {
-    updateStatusBadge(buildBadge, buildStatus)
-  }
-
-  if (startBadge) {
-    updateStatusBadge(startBadge, startStatus)
-  }
+  const row = document.querySelector(`tr[data-tentacle="${CSS.escape(tentacleName)}"]`);
+  if (!row) return;
+  row.children[2].innerHTML = renderStatusBadge(buildStatus);
+  row.children[3].innerHTML = renderStatusBadge(startStatus);
 }
 
-function updateStatusBadge(badge, status) {
-  badge.classList.add("updating")
-
-  setTimeout(() => {
-    let statusClass, statusText, iconClass
-
-    if (status === true) {
-      statusClass = "success"
-      statusText = "OK"
-      iconClass = "check-circle"
-    } else if (status === false) {
-      statusClass = "danger"
-      statusText = "FAIL"
-      iconClass = "x-circle"
-    } else {
-      statusClass = "warning"
-      statusText = "WAIT"
-      iconClass = "clock"
-    }
-
-    badge.setAttribute("data-status", statusClass)
-    badge.innerHTML = `<i class="bi bi-${iconClass}"></i> ${statusText}`
-    badge.classList.remove("updating")
-  }, 150)
-}
-
-function refreshData() {
-  const button = document.querySelector('button[onclick="refreshData()"]')
-  const originalContent = button.innerHTML
-
-  button.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Refreshing...'
-  button.disabled = true
-
-  fetch("/api/tentacles")
-    .then((response) => response.json())
-    .then((data) => {
-      updateTentaclesTable(data.tentacles)
-    })
-    .catch((error) => {
-      console.error("Error refreshing data:", error)
-      showNotification("Error refreshing data", "danger")
-    })
-    .finally(() => {
-      button.innerHTML = originalContent
-      button.disabled = false
-    })
-}
-
-function updateTentaclesTable(tentacles) {
-  const tbody = document.getElementById("tentacles-tbody")
-
-  tentacles.forEach((tentacle) => {
-    updateTentacleStatus(tentacle.name, tentacle.is_build_success, tentacle.is_start_success)
-  })
-}
+/* Logs UI */
 
 function viewLogs(tentacleName) {
-  currentTentacle = tentacleName
-  document.getElementById("current-tentacle").textContent = tentacleName
+  currentTentacle = tentacleName;
+  const currentSpan = document.getElementById("current-tentacle");
+  if (currentSpan) currentSpan.textContent = tentacleName;
 
-  // Reset tabs to build logs
-  const buildTab = document.getElementById("build-tab")
-  const startTab = document.getElementById("start-tab")
-  const buildPane = document.getElementById("build-logs")
-  const startPane = document.getElementById("start-logs")
+  // Reset tabs
+  const buildTab = document.getElementById("build-tab");
+  const startTab = document.getElementById("start-tab");
+  const buildPane = document.getElementById("build-logs");
+  const startPane = document.getElementById("start-logs");
 
-  buildTab.classList.add("active")
-  startTab.classList.remove("active")
-  buildPane.classList.add("show", "active")
-  startPane.classList.remove("show", "active")
+  buildTab.classList.add("active");
+  startTab.classList.remove("active");
+  buildPane.classList.add("show", "active");
+  startPane.classList.remove("show", "active");
 
-  // Show loading state for build logs
-  const buildTabsContainer = document.getElementById("buildCommandTabs")
-  const buildContentContainer = document.getElementById("buildCommandTabContent")
-  buildTabsContainer.innerHTML = `
+  // Loading placeholders
+  document.getElementById("buildCommandTabs").innerHTML = `
     <li class="nav-item" role="presentation">
       <span class="nav-link active">
         <div class="spinner-border spinner-border-sm text-primary" role="status">
@@ -126,204 +149,249 @@ function viewLogs(tentacleName) {
         Loading...
       </span>
     </li>
-  `
-  buildContentContainer.innerHTML = ""
+  `;
+  document.getElementById("buildCommandTabContent").innerHTML = "";
 
-  // Show loading state for start logs
   document.getElementById("start-logs-content").innerHTML = `
-    <div class="text-center">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
+    <div class="text-center py-3">
+      <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
     </div>
-  `
+  `;
 
-  // Show modal
-  logsModal.show()
+  logsModal.show();
 
-  // Load logs
-  loadLogs(tentacleName, "build")
-  loadLogs(tentacleName, "start")
+  // Load historic logs by HTTP
+  loadLogs(tentacleName, "build");
+  loadLogs(tentacleName, "start");
+
+  // Request real-time logs via WS if connected
+  if (socket && wsConnected) {
+    socket.emit("request_logs", { tentacle: tentacleName, log_type: "start" });
+    socket.emit("request_logs", { tentacle: tentacleName, log_type: "build" });
+  }
 }
 
-function loadLogs(tentacleName, logType) {
-  fetch(`/api/tentacles/${tentacleName}/logs/${logType}`)
-    .then((response) => response.json())
-    .then((data) => {
-      updateLogsContent(logType, data.logs)
-    })
-    .catch((error) => {
-      console.error(`Error loading ${logType} logs:`, error)
-      if (logType === "build") {
-        const tabsContainer = document.getElementById("buildCommandTabs")
-        const contentContainer = document.getElementById("buildCommandTabContent")
-        tabsContainer.innerHTML = ""
-        contentContainer.innerHTML = `
-          <div class="alert alert-danger" role="alert">
-            <i class="bi bi-exclamation-triangle"></i>
-            Error loading logs: ${error.message}
-          </div>
-        `
-      } else {
-        const contentElement = document.getElementById(`${logType}-logs-content`)
-        contentElement.innerHTML = `Error loading logs: ${error.message}`
-      }
-    })
+async function loadLogs(tentacleName, logType) {
+  try {
+    const logs = await apiGetLogs(tentacleName, logType);
+    updateLogsContent(logType, logs);
+  } catch (err) {
+    console.error(`Error loading ${logType} logs:`, err);
+    const id = logType === "build" ? "buildCommandTabContent" : `${logType}-logs-content`;
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<div class="alert alert-danger">Ошибка: ${escapeHtml(err.message)}</div>`;
+  }
 }
 
 function updateLogsContent(logType, logs) {
-  if (logType === "build") {
-    updateBuildLogs(logs)
-  } else if (logType === "start") {
-    updateStartLogs(logs)
-  }
+  if (logType === "build") updateBuildLogs(logs);
+  else if (logType === "start") updateStartLogs(logs);
 }
 
 function updateBuildLogs(logs) {
   const tabsContainer = document.getElementById("buildCommandTabs")
   const contentContainer = document.getElementById("buildCommandTabContent")
 
-  if (!logs || !logs.commands || logs.commands.length === 0) {
+  if (!logs || !Array.isArray(logs) || logs.length === 0) {
     tabsContainer.innerHTML = `
       <li class="nav-item" role="presentation">
         <span class="nav-link active text-muted">No build commands</span>
       </li>
     `
     contentContainer.innerHTML = `
-      <div class="text-muted text-center p-4">
-        <i class="bi bi-info-circle"></i>
-        No build logs available
-      </div>
+      <div class="text-muted text-center p-4"><i class="bi bi-info-circle"></i> No build logs available</div>
     `
     return
   }
 
-  // Clear existing content
+  // Store currently active tab before rebuilding
+  const currentActiveTab = tabsContainer.querySelector(".nav-link.active")
+  const currentActiveIndex = currentActiveTab
+    ? Array.from(tabsContainer.querySelectorAll(".nav-link")).indexOf(currentActiveTab)
+    : 0
+
   tabsContainer.innerHTML = ""
   contentContainer.innerHTML = ""
 
-  // Create tabs and content for each command
-  logs.commands.forEach((commandData, index) => {
-    const commandName = commandData.command
-    const commandOutput = commandData.output
-    const tabId = `build-command-${index}`
-    const isActive = index === 0
+  logs.forEach((cmd, idx) => {
+    const commandName = cmd.command || `cmd-${idx}`
+    const output = cmd.output || "(No output)"
+    const tabId = `build-command-${idx}`
+    // Preserve active state or default to first tab, but prefer the last tab for new builds
+    const isActive =
+      logs.length > currentActiveIndex + 1
+        ? idx === logs.length - 1
+        : // If new commands added, show the latest
+          idx === Math.min(currentActiveIndex, logs.length - 1) // Otherwise preserve selection
 
-    // Create tab
-    const tabItem = document.createElement("li")
-    tabItem.className = "nav-item"
-    tabItem.setAttribute("role", "presentation")
+    const li = document.createElement("li")
+    li.className = "nav-item"
+    li.setAttribute("role", "presentation")
 
-    const tabButton = document.createElement("button")
-    tabButton.className = `nav-link ${isActive ? "active" : ""}`
-    tabButton.id = `${tabId}-tab`
-    tabButton.setAttribute("data-bs-toggle", "tab")
-    tabButton.setAttribute("data-bs-target", `#${tabId}`)
-    tabButton.setAttribute("type", "button")
-    tabButton.setAttribute("role", "tab")
-    tabButton.setAttribute("aria-controls", tabId)
-    tabButton.setAttribute("aria-selected", isActive.toString())
-    tabButton.textContent = commandName
-    tabButton.title = commandName // Tooltip for long command names
+    const btn = document.createElement("button")
+    btn.className = `nav-link ${isActive ? "active" : ""}`
+    btn.id = `${tabId}-tab`
+    btn.type = "button"
+    btn.setAttribute("data-bs-toggle", "tab")
+    btn.setAttribute("data-bs-target", `#${tabId}`)
+    btn.setAttribute("role", "tab")
+    btn.setAttribute("aria-controls", tabId)
+    btn.setAttribute("aria-selected", isActive.toString())
+    btn.title = commandName
+    btn.textContent = commandName
 
-    tabItem.appendChild(tabButton)
-    tabsContainer.appendChild(tabItem)
+    li.appendChild(btn)
+    tabsContainer.appendChild(li)
 
-    // Create content
-    const contentPane = document.createElement("div")
-    contentPane.className = `tab-pane fade ${isActive ? "show active" : ""}`
-    contentPane.id = tabId
-    contentPane.setAttribute("role", "tabpanel")
-    contentPane.setAttribute("aria-labelledby", `${tabId}-tab`)
+    const pane = document.createElement("div")
+    pane.className = `tab-pane fade ${isActive ? "show active" : ""}`
+    pane.id = tabId
+    pane.setAttribute("role", "tabpanel")
+    pane.setAttribute("aria-labelledby", `${tabId}-tab`)
 
     const contentDiv = document.createElement("div")
     contentDiv.className = "build-command-content"
 
-    const preElement = document.createElement("pre")
-    preElement.textContent = commandOutput || "(No output)"
+    const pre = document.createElement("pre")
+    pre.textContent = output
 
-    contentDiv.appendChild(preElement)
-    contentPane.appendChild(contentDiv)
-    contentContainer.appendChild(contentPane)
+    contentDiv.appendChild(pre)
+    pane.appendChild(contentDiv)
+    contentContainer.appendChild(pane)
   })
 
-  // Initialize Bootstrap tabs after creating them
-  const tabTriggerList = [].slice.call(tabsContainer.querySelectorAll('button[data-bs-toggle="tab"]'))
-  tabTriggerList.map((tabTriggerEl) => new bootstrap.Tab(tabTriggerEl))
+  // Reinitialize bootstrap tabs after rebuilding
+  const bootstrap = window.bootstrap // Declare the bootstrap variable
+  Array.from(tabsContainer.querySelectorAll('button[data-bs-toggle="tab"]')).forEach((btn) => {
+    // Remove any existing tab instances
+    const existingTab = bootstrap.Tab.getInstance(btn)
+    if (existingTab) {
+      existingTab.dispose()
+    }
+    // Create new tab instance
+    new bootstrap.Tab(btn)
+  })
+
+  console.log("Build tabs updated, total commands:", logs.length)
 }
 
 function updateStartLogs(logs) {
-  const contentElement = document.getElementById("start-logs-content")
-
-  if (!logs || !logs.output) {
-    contentElement.textContent = "No start logs available"
-    return
+  const contentElement = document.getElementById("start-logs-content");
+  if (!logs || !Array.isArray(logs) || logs.length === 0) {
+    contentElement.textContent = "No start logs available";
+    return;
   }
 
-  contentElement.textContent = logs.output
+  contentElement.textContent = logs.join("\n");
 
-  // Auto-scroll to bottom
-  const container = contentElement.parentElement
-  container.scrollTop = container.scrollHeight
+  const container = contentElement.parentElement;
+  if (container) container.scrollTop = container.scrollHeight;
 }
 
-function getLogEntryClass(level) {
-  switch (level.toLowerCase()) {
-    case "error":
-      return "error"
-    case "warning":
-    case "warn":
-      return "warning"
-    case "info":
-      return "info"
-    default:
-      return ""
+function appendStartLogLine(line) {
+  const contentElement = document.getElementById("start-logs-content");
+  if (!contentElement) return;
+
+  // Если внутри есть spinner — очистить и перейти к тексту
+  if (contentElement.querySelector && contentElement.querySelector(".spinner-border")) {
+    contentElement.textContent = "";
   }
+
+  contentElement.textContent += (contentElement.textContent ? "\n" : "") + line;
+
+  const container = contentElement.parentElement;
+  if (container) container.scrollTop = container.scrollHeight;
 }
 
-function escapeHtml(text) {
-  const div = document.createElement("div")
-  div.textContent = text
-  return div.innerHTML
-}
+/* WebSocket (Socket.IO) */
 
-function refreshLogs() {
-  if (currentTentacle) {
-    loadLogs(currentTentacle, "build")
-    loadLogs(currentTentacle, "start")
+function initWebSocket(forceReconnect = false) {
+  if (socket && wsConnected && !forceReconnect) return;
+
+  if (socket) {
+    try {
+      socket.disconnect();
+    } catch { }
+    socket = null;
+    wsConnected = false;
   }
+
+  socket = io({ transports: ["websocket"] });
+
+  socket.on("connect", () => {
+    wsConnected = true;
+    console.info("WS connected");
+    socket.emit("request_status");
+  });
+
+  socket.on("disconnect", () => {
+    wsConnected = false;
+    console.warn("WS disconnected");
+  });
+
+  socket.on("status_update", (data) => {
+    if (!data) return;
+    if (Array.isArray(data.tentacles)) {
+      renderTentacleTable(data.tentacles);
+    } else if (data.tentacle) {
+      updateTentacleStatus(data.tentacle, data.build_status, data.start_status);
+    }
+  });
+
+  socket.on("logs_update", (data) => {
+    if (!data || data.tentacle !== currentTentacle) return;
+
+    const logType = data.log_type;
+    const payload = data.logs;
+
+    if (data.stream === true) {
+      if (logType === "start" && payload && payload.output) {
+        appendStartLogLine(payload.output);
+      }
+      return;
+    }
+
+    updateLogsContent(logType, payload);
+  });
+
+  socket.on("connection_status", (d) => {
+    console.debug("connection_status:", d);
+  });
+
+  socket.on("connect_error", (err) => {
+    wsConnected = false;
+    console.warn("WS connect_error", err);
+  });
+}
+
+/* Utilities */
+
+function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function showNotification(message, type = "info") {
-  // Create notification element
-  const notification = document.createElement("div")
-  notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`
-  notification.style.cssText = "top: 20px; right: 20px; z-index: 9999; min-width: 300px;"
-  notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `
+  const notification = document.createElement("div");
+  notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+  notification.style.cssText = "top: 20px; right: 20px; z-index: 9999; min-width: 300px;";
+  notification.innerHTML = `${escapeHtml(message)}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
 
-  document.body.appendChild(notification)
-
-  // Auto-remove after 5 seconds
+  document.body.appendChild(notification);
   setTimeout(() => {
-    if (notification.parentNode) {
-      notification.remove()
-    }
-  }, 5000)
+    if (notification.parentNode) notification.remove();
+  }, 5000);
 }
 
-// Add CSS for spinning animation
-const style = document.createElement("style")
-style.textContent = `
-    .spin {
-        animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-`
-document.head.appendChild(style)
+/* spin animation style */
+(function addSpinStyle() {
+  const s = document.createElement("style");
+  s.textContent = `.spin{animation:spin 1s linear infinite}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`;
+  document.head.appendChild(s);
+})();

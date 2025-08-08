@@ -3,10 +3,11 @@ import signal
 import sys
 import threading
 from urllib.parse import urlparse
-import requests
-from flask import Flask, request, Response, jsonify
 
+import requests
 from flask import Flask, request, Response, jsonify, render_template
+from flask_socketio import SocketIO, emit
+
 from TentaclePreview import output
 from TentaclePreview import tentacle_preview as tentacle
 
@@ -18,6 +19,79 @@ def main_page():
     return render_template('index.html', tentacles=tentacle.TENTACLES_LIST)
 
 
+def setup_websocket(app):
+    """
+    Настраивает WebSocket для обмена статусами и логами тентаклей.
+    Возвращает socketio и функции для трансляции событий.
+    """
+    socketio = SocketIO(app, cors_allowed_origins="*")
+
+    @socketio.on('connect')
+    def on_connect():
+        output.log('WebSocket: client connected', 'info')
+        emit('connection_status', {'status': 'connected'})
+
+    @socketio.on('disconnect')
+    def on_disconnect():
+        output.log('WebSocket: client disconnected', 'info')
+
+    @socketio.on('request_status')
+    def on_request_status():
+        tentacles = [
+            {
+                'name': t.name,
+                'url': t.url,
+                'is_build_success': t.is_build_success,
+                'is_start_success': t.is_start_success,
+                'last_commit': t.last_commit
+            }
+            for t in tentacle.TENTACLES_LIST
+        ]
+        emit('status_update', {'tentacles': tentacles})
+
+    @socketio.on('request_logs')
+    def on_request_logs(data):
+        tentacle_name = data.get('tentacle')
+        log_type = data.get('log_type', 'build')
+
+        tenty = tentacle.get_tenty_by_name(tentacle_name)
+        if not tenty:
+            output.log(f'WebSocket: Tentacle "{tentacle_name}" not found', 'warning')
+            return
+
+        logs = tenty.get_logs(log_type)
+        emit('logs_update', {
+            'tentacle': tentacle_name,
+            'log_type': log_type,
+            'logs': logs,
+            'stream': False
+        })
+
+    def broadcast_status_update(name, build_status, start_status):
+        try:
+            socketio.emit('status_update', {
+                'tentacle': name,
+                'build_status': build_status,
+                'start_status': start_status
+            })
+            output.log(f'Broadcast status: {name}, build={build_status}, start={start_status}')
+        except Exception as e:
+            output.log(f'Error broadcasting status: {e}', 'error')
+
+    def broadcast_logs_update(name, log_type, logs, stream=False):
+        try:
+            socketio.emit('logs_update', {
+                'tentacle': name,
+                'log_type': log_type,
+                'logs': logs,
+                'stream': bool(stream)
+            })
+            output.log(f'Broadcast logs: {name}, type={log_type}, stream={stream}')
+        except Exception as e:
+            output.log(f'Error broadcasting logs: {e}', 'error')
+
+    return socketio, broadcast_status_update, broadcast_logs_update
+
 
 @app.route('/api/tentacles')
 def api_tentacles():
@@ -27,7 +101,8 @@ def api_tentacles():
             'name': tenty.name,
             'url': tenty.url,
             'is_build_success': tenty.is_build_success,
-            'is_start_success': tenty.is_start_success
+            'is_start_success': tenty.is_start_success,
+            'last_commit': tenty.last_commit
         })
 
     return jsonify({
@@ -46,10 +121,7 @@ def api_tentacle_logs(tentacle_name, log_type):
         return jsonify({'error': 'Invalid log type. Must be "build" or "start"'}), 400
 
     try:
-        # This is a placeholder - you'll need to implement actual log retrieval
-        # based on your tentacle object structure
-        logs = get_tentacle_logs(target_tentacle, log_type)
-
+        logs = target_tentacle.get_logs(log_type)
         return jsonify({
             'tentacle': tentacle_name,
             'log_type': log_type,
@@ -59,57 +131,11 @@ def api_tentacle_logs(tentacle_name, log_type):
         return jsonify({'error': str(e)}), 500
 
 
-def get_tentacle_logs(tentacle_obj, log_type):
-    """
-    Get logs for a tentacle based on the actual tentacle object structure.
-    """
-    if log_type == 'build':
-        # build_output: List[Dict[Literal["command", "output"], str]]
-        if hasattr(tentacle_obj, 'build_output') and tentacle_obj.build_output:
-            # Return structured data for build commands
-            commands = []
-            for build_step in tentacle_obj.build_output:
-                command = build_step.get('command', 'Unknown command')
-                output = build_step.get('output', '(No output)')
-
-                commands.append({
-                    'command': command,
-                    'output': output
-                })
-
-            return {
-                'type': 'build',
-                'commands': commands
-            }
-        else:
-            return {
-                'type': 'build',
-                'commands': [{
-                    'command': 'No build commands',
-                    'output': 'No build logs available'
-                }]
-            }
-
-    elif log_type == 'start':
-        # start_output: str | None
-        if hasattr(tentacle_obj, 'start_output') and tentacle_obj.start_output:
-            return {
-                'type': 'start',
-                'output': tentacle_obj.start_output
-            }
-        else:
-            return {
-                'type': 'start',
-                'output': 'No start logs available'
-            }
-
-    return {}
-
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
         if "zen" in request.json:
+            # GitHub webhook ping event
             return jsonify({"status": "ping"}), 200
 
         threading.Thread(target=tentacle.proceed_webhook_event, args=[request.json]).start()
@@ -209,7 +235,6 @@ def proxy_to_tentacle(branch, path=''):
 def proxy_static_fallback(path):
     referer = request.headers.get("Referer")
     if not referer:
-        print(referer)
         return f"Unknown path: /{path}", 404
 
     # get tentacle name from referer url
@@ -242,11 +267,19 @@ def graceful_shutdown(*_):
 signal.signal(signal.SIGINT, graceful_shutdown)
 signal.signal(signal.SIGTERM, graceful_shutdown)
 
+
 if __name__ == '__main__':
-    if 1 < len(sys.argv):
-        threading.Thread(target=tentacle.init, args=[sys.argv[1]]).start()
-    else:
-        threading.Thread(target=tentacle.init).start()
+    try:
+        socketio, broadcast_status_update, broadcast_logs_update = setup_websocket(app)
 
-    app.run(host="0.0.0.0", port=4999)
+        from TentaclePreview.tentacle import Tentacle
+        Tentacle.set_broadcast_callbacks(broadcast_logs_update, broadcast_status_update)
 
+        if len(sys.argv) > 1:
+            threading.Thread(target=tentacle.init, args=[sys.argv[1]]).start()
+        else:
+            threading.Thread(target=tentacle.init).start()
+
+        socketio.run(app, host="0.0.0.0", port=4999, allow_unsafe_werkzeug=True)
+    except Exception as e:
+        output.log(f"Failed to start server: {e}", "error")

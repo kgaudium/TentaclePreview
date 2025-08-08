@@ -5,7 +5,8 @@ import signal
 import socket
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
+import threading
 
 from git import Repo
 from github.Branch import Branch
@@ -15,39 +16,80 @@ from TentaclePreview.output import log, progress
 
 
 class Tentacle:
+    _broadcast_status = None  # callable(name, build_status, start_status)
+    _broadcast_logs = None    # callable(name, log_type, logs_dict, stream=False)
+
+    @classmethod
+    def set_broadcast_callbacks(cls, logs_callback, status_callback):
+        cls._broadcast_logs = logs_callback
+        cls._broadcast_status = status_callback
+
     def __init__(self, remote_repo: Repository, remote_branch: Branch | str, branches_dir: Path,
                  commands: Dict[str, str | List[str]]):
-        if type(remote_repo) != Repository:
+        if not isinstance(remote_repo, Repository):
             raise TypeError("remote_repo must be of type Repository")
 
-        self._remote_repo: Repository = remote_repo
-
-        if isinstance(remote_branch, Branch):
-            self.remote_branch = remote_branch
-        elif isinstance(remote_branch, str):
-            self.remote_branch = self._remote_repo.get_branch(remote_branch)
-        else:
-            raise TypeError("remote_branch must be of type Branch or str")
+        self._remote_repo = remote_repo
+        self.remote_branch = (
+            remote_branch if isinstance(remote_branch, Branch)
+            else self._remote_repo.get_branch(remote_branch)
+        )
 
         self._path: Path = branches_dir / Path(self.name)
         self._commands: Dict[str, str | List[str]] = commands
         if not {"start", "build"}.issubset(self._commands):
             raise ValueError("'start' and 'build' commands must exist")
 
-        self._local_repo: Repo | None = None
-        self._process: subprocess.Popen | None = None
+        self._local_repo: Optional[Repo] = None
+        self._process: Optional[subprocess.Popen] = None
         self._host: str = "127.0.0.1"
         self._port: int = self._find_free_port()
 
-        self.is_build_success: bool | None = None
-        self.is_start_success: bool | None = None
+        self.is_build_success: Optional[bool] = None
+        self.is_start_success: Optional[bool] = None
         self.build_output: List[Dict[Literal["command", "output"], str]] = []
-        self.start_output: str | None = None
+        self.start_output: Optional[List[str]] = []
 
         if self.path.exists():
             self._load_repo_from_path()
         else:
             self._clone_repo_from_remote()
+
+    def _stream_process_output(self, stream):
+        """Читает stdout/stderr построчно, сохраняет и отправляет в WS"""
+        try:
+            for raw_line in iter(stream.readline, ""):
+                if raw_line is None:
+                    break
+                line = raw_line.rstrip("\n")
+                if not line and stream.closed:
+                    break
+
+                self.start_output.append(line)  # сохраняем в историю
+
+                if Tentacle._broadcast_logs:
+                    try:
+                        Tentacle._broadcast_logs(
+                            self.name,
+                            "start",
+                            {"output": line},
+                            stream=True  # помечаем, что это "живой" вывод
+                        )
+                    except Exception:
+                        pass
+        finally:
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+    def get_logs(self, log_type):
+        """Возвращает накопленные логи по типу"""
+        if log_type == "build":
+            return self.build_output
+        if log_type == "start":
+            return self.start_output
+        return []
 
     def _load_repo_from_path(self):
         log(f"Found existing folder for branch '{self.name}'. Attempting to load...")
@@ -96,12 +138,11 @@ class Tentacle:
         log(f"Fetching tentacle '{self.name}'...")
         self.local_repo.remote().fetch(progress=progress, force=True)
         self.local_repo.remote().refs[self.name].checkout(True)
-        # self.local_repo.git.fetch("--all", "--force", "--prune")
 
     def clear_files(self):
         log(f"Deleting tentacle '{self.name}' files...", "warning")
         if self._process is not None:
-            raise RuntimeError("Cannot delete tentacle files while its running")
+            raise RuntimeError("Cannot delete tentacle files while it's running")
 
         shutil.rmtree(self.path)
 
@@ -120,7 +161,7 @@ class Tentacle:
             commands = [commands]
 
         self.is_build_success = True
-        self.build_output = []
+        self.build_output.clear()
 
         for raw_cmd in commands:
             if not raw_cmd.strip():
@@ -138,19 +179,25 @@ class Tentacle:
                     capture_output=True,
                     text=True,
                 )
+                stdout = result.stdout or ""
+                stderr = result.stderr or ""
+                if stdout.strip():
+                    log(f"'{cmd}' output:\n{stdout.strip()}", "info")
+                if stderr.strip():
+                    log(f"'{cmd}' errors:\n{stderr.strip()}", "warning")
+                self.build_output.append({"command": cmd, "output": stdout + ("\n" + stderr if stderr else "")})
 
-                if result.stdout:
-                    log(f"'{cmd}' output:\n{result.stdout.strip()}", "info")
-                if result.stderr:
-                    log(f"'{cmd}' errors:\n{result.stderr.strip()}", "warning")
-
-                self.build_output.append({"command": cmd, "output": result.stdout + "\n" + result.stderr})
+                if Tentacle._broadcast_logs:
+                    Tentacle._broadcast_logs(self.name, "build", self.build_output, stream=False)
             except subprocess.CalledProcessError as e:
                 self.is_build_success = False
-                self.build_output.append({"command": cmd, "output": str(e)})
+                out = (e.stdout or "") + ("\n" + (e.stderr or "")) if (e.stdout or e.stderr) else str(e)
+                self.build_output.append({"command": cmd, "output": out})
                 log(f"Build step failed:\n{e.stderr}", "error")
                 break
 
+        if Tentacle._broadcast_status:
+            Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
         if self.is_build_success:
             log(f"Tentacle '{self.name}' built successfully.", "success")
 
@@ -167,10 +214,15 @@ class Tentacle:
             return
 
         cmd = self._render_command(raw_cmd)
-
         is_windows = platform.system() == "Windows"
 
         try:
+            self.is_start_success = None
+            if Tentacle._broadcast_status:
+                Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
+
+            self.start_output.clear()
+
             self._process = subprocess.Popen(
                 cmd,
                 cwd=str(self.path),
@@ -178,16 +230,27 @@ class Tentacle:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                bufsize=1,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if is_windows else 0,
                 preexec_fn=os.setsid if not is_windows else None
             )
             self.is_start_success = True
-            self.start_output = None
             log(f"Tentacle '{self.name}' started.", status="success")
+
+            if Tentacle._broadcast_status:
+                Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
+
+            if self._process.stdout:
+                threading.Thread(target=self._stream_process_output, args=(self._process.stdout,), daemon=True).start()
+            if self._process.stderr:
+                threading.Thread(target=self._stream_process_output, args=(self._process.stderr,), daemon=True).start()
+
         except Exception as e:
             self.is_start_success = False
-            self.start_output = str(e)
+            self.start_output.append(str(e))
             log(f"Failed to start tentacle:\n{e}", status="error")
+            if Tentacle._broadcast_status:
+                Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
 
     def stop(self):
         log(f"Stopping tentacle '{self.name}'...", status="header")
@@ -278,6 +341,10 @@ class Tentacle:
         if self._port is None:
             return None
         return f"{self._host}:{self._port}"
+
+    @property
+    def last_commit(self) -> str:
+        return self.local_repo.head.commit.hexsha[:7]
 
     @property
     def _command_context(self) -> Dict[str, str | int]:
