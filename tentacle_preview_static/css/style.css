@@ -1,0 +1,211 @@
+:root {
+  --bs-success-rgb: 25, 135, 84;
+  --bs-danger-rgb: 220, 53, 69;
+  --bs-warning-rgb: 255, 193, 7;
+  --bs-info-rgb: 0, 123, 255; /* Added for info status */
+}
+
+body {
+  background-color: #f8f9fa;
+}
+
+.status-badge {
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.3s ease; /* Moved from updates to existing code */
+}
+
+.status-badge[data-status="success"] {
+  background-color: rgba(var(--bs-success-rgb), 0.1);
+  color: rgb(var(--bs-success-rgb));
+  border: 1px solid rgba(var(--bs-success-rgb), 0.2);
+}
+
+.status-badge[data-status="danger"] {
+  background-color: rgba(var(--bs-danger-rgb), 0.1);
+  color: rgb(var(--bs-danger-rgb));
+  border: 1px solid rgba(var(--bs-danger-rgb), 0.2);
+}
+
+.status-badge[data-status="warning"] {
+  background-color: rgba(var(--bs-warning-rgb), 0.1);
+  color: rgb(var(--bs-warning-rgb));
+  border: 1px solid rgba(var(--bs-warning-rgb), 0.2);
+}
+
+.status-badge[data-status="info"] {
+  background-color: rgba(var(--bs-info-rgb), 0.1);
+  color: rgb(var(--bs-info-rgb));
+  border: 1px solid rgba(var(--bs-info-rgb), 0.2);
+}
+
+.status-badge.updating {
+  opacity: 0.6;
+  transform: scale(0.95);
+}
+
+.logs-container {
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  background-color: #f8f9fa;
+}
+
+.logs-content {
+  padding: 1rem;
+  font-family: "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  background-color: transparent;
+  border: none;
+  color: #212529;
+}
+
+.log-entry {
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.log-entry.error {
+  background-color: rgba(var(--bs-danger-rgb), 0.1);
+  border-left: 3px solid rgb(var(--bs-danger-rgb));
+}
+
+.log-entry.warning {
+  background-color: rgba(var(--bs-warning-rgb), 0.1);
+  border-left: 3px solid rgb(var(--bs-warning-rgb));
+}
+
+.log-entry.info {
+  background-color: rgba(var(--bs-info-rgb), 0.1);
+  border-left: 3px solid rgb(var(--bs-info-rgb));
+}
+
+/* Build command tabs styling */
+#buildCommandTabs {
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 1rem;
+}
+
+#buildCommandTabs .nav-link {
+  border-radius: 0.375rem 0.375rem 0 0;
+  border: 1px solid transparent;
+  color: #6c757d;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
+#buildCommandTabs .nav-link:hover {
+  border-color: #e9ecef #e9ecef #dee2e6;
+  color: #495057;
+}
+
+#buildCommandTabs .nav-link.active {
+  color: #495057;
+  background-color: #fff;
+  border-color: #dee2e6 #dee2e6 #fff;
+}
+
+.build-command-content {
+  height: 350px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  background-color: #f8f9fa;
+}
+
+.build-command-content pre {
+  padding: 1rem;
+  font-family: "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  background-color: transparent;
+  border: none;
+  color: #212529;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.025);
+}
+
+#connection-status.online {
+  background-color: #198754 !important;
+}
+
+#connection-status.offline {
+  background-color: #6c757d !important;
+}
+
+.navbar-brand {
+  font-weight: 600;
+}
+
+.card {
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.modal-xl {
+  max-width: 90%;
+}
+
+@media (max-width: 768px) {
+  .modal-xl {
+    max-width: 95%;
+  }
+
+  .table-responsive {
+    font-size: 0.875rem;
+  }
+
+  .btn-sm {
+    font-size: 0.75rem;
+  }
+}
+
+/* Scrollbar styling for logs */
+.logs-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.logs-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.logs-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.logs-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Scrollbar styling for build command content */
+.build-command-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.build-command-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.build-command-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.build-command-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

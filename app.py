@@ -3,33 +3,108 @@ import signal
 import sys
 import threading
 from urllib.parse import urlparse
-
 import requests
 from flask import Flask, request, Response, jsonify
 
+from flask import Flask, request, Response, jsonify, render_template
 from TentaclePreview import output
 from TentaclePreview import tentacle_preview as tentacle
 
-app = Flask(__name__, static_folder=None)
+app = Flask(__name__, static_folder="tentacle_preview_static")
 
 
 @app.route('/')
-def main_page():  # put application's code here
-    result = "<table><tr> <th>Tentacle</th> <th>local url</th> <th>Build</th> <th>Start</th> </tr>"
+def main_page():
+    return render_template('index.html', tentacles=tentacle.TENTACLES_LIST)
 
+
+
+@app.route('/api/tentacles')
+def api_tentacles():
+    tentacles_data = []
     for tenty in tentacle.TENTACLES_LIST:
-        build_ok = "WAIT" if tenty.is_build_success is None else "OK" if tenty.is_build_success else "FAIL"
-        start_ok = "WAIT" if tenty.is_start_success is None else "OK" if tenty.is_start_success else "FAIL"
+        tentacles_data.append({
+            'name': tenty.name,
+            'url': tenty.url,
+            'is_build_success': tenty.is_build_success,
+            'is_start_success': tenty.is_start_success
+        })
 
-        result += "<tr>"
-        result += f"<td><a href=\"{request.scheme}://{request.host}/tentacle/{tenty.name}\">{tenty.name}</a></td>"
-        result += f"<td><a href={request.scheme}://{tenty.url}>{tenty.url}</a></td>"
-        result += f"<td>{build_ok}</td>"
-        result += f"<td>{start_ok}</td>"
-        result += "</tr>"
+    return jsonify({
+        'tentacles': tentacles_data,
+        'total': len(tentacles_data)
+    })
 
-    result += "</table>"
-    return result
+
+@app.route('/api/tentacles/<tentacle_name>/logs/<log_type>')
+def api_tentacle_logs(tentacle_name, log_type):
+    target_tentacle = tentacle.get_tenty_by_name(tentacle_name)
+    if target_tentacle is None:
+        return jsonify({'error': f'Tentacle {tentacle_name} not found'}), 404
+
+    if log_type not in ['build', 'start']:
+        return jsonify({'error': 'Invalid log type. Must be "build" or "start"'}), 400
+
+    try:
+        # This is a placeholder - you'll need to implement actual log retrieval
+        # based on your tentacle object structure
+        logs = get_tentacle_logs(target_tentacle, log_type)
+
+        return jsonify({
+            'tentacle': tentacle_name,
+            'log_type': log_type,
+            'logs': logs
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def get_tentacle_logs(tentacle_obj, log_type):
+    """
+    Get logs for a tentacle based on the actual tentacle object structure.
+    """
+    if log_type == 'build':
+        # build_output: List[Dict[Literal["command", "output"], str]]
+        if hasattr(tentacle_obj, 'build_output') and tentacle_obj.build_output:
+            # Return structured data for build commands
+            commands = []
+            for build_step in tentacle_obj.build_output:
+                command = build_step.get('command', 'Unknown command')
+                output = build_step.get('output', '(No output)')
+
+                commands.append({
+                    'command': command,
+                    'output': output
+                })
+
+            return {
+                'type': 'build',
+                'commands': commands
+            }
+        else:
+            return {
+                'type': 'build',
+                'commands': [{
+                    'command': 'No build commands',
+                    'output': 'No build logs available'
+                }]
+            }
+
+    elif log_type == 'start':
+        # start_output: str | None
+        if hasattr(tentacle_obj, 'start_output') and tentacle_obj.start_output:
+            return {
+                'type': 'start',
+                'output': tentacle_obj.start_output
+            }
+        else:
+            return {
+                'type': 'start',
+                'output': 'No start logs available'
+            }
+
+    return {}
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
