@@ -3,91 +3,124 @@
 {% block title %}TentaclePreview - Dashboard{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1><i class="bi bi-diagram-3"></i> Tentacles Dashboard</h1>
-            <button id="refreshButton" class="btn btn-outline-primary">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
-            </button>
-        </div>
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-diagram-3"></i> Tentacles Dashboard</h1>
+                <button id="refreshButton" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
 
-        <div class="card">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover" id="tentacles-table">
-                        <thead class="table-dark">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="tentacles-table">
+                            <thead class="table-dark">
                             <tr>
-                                <th scope="col"><i class="bi bi-git"></i> Tentacle</th>
+                                <th scope="col" class="tr-left"><i class="bi bi-git"></i> Tentacle</th>
                                 <th scope="col"><i class="bi bi-link-45deg"></i> Local URL</th>
                                 <th scope="col"><i class="bi bi-hammer"></i> Build</th>
                                 <th scope="col"><i class="bi bi-play-circle"></i> Start</th>
                                 <th scope="col"><i class="bi bi-gear"></i> Actions</th>
-                                <th scope="col"><i class="bi bi-diagram-2"></i> Last commit</th>
+                                <th scope="col" class="tr-left"><i class="bi bi-diagram-2"></i> Last commit</th>
                             </tr>
-                        </thead>
-                        <tbody id="tentacles-tbody">
+                            </thead>
+                            <tbody id="tentacles-tbody">
 
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Logs Modal -->
-<div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="logsModalLabel">
-                    <i class="bi bi-file-text"></i> Logs for <span id="current-tentacle"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <ul class="nav nav-tabs" id="logsTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="build-tab" data-bs-toggle="tab" data-bs-target="#build-logs" type="button" role="tab">
-                            <i class="bi bi-hammer"></i> Build Logs
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="start-tab" data-bs-toggle="tab" data-bs-target="#start-logs" type="button" role="tab">
-                            <i class="bi bi-play-circle"></i> Start Logs
-                        </button>
-                    </li>
-                </ul>
-                <div class="tab-content mt-3" id="logsTabContent">
-                    <div class="tab-pane fade show active" id="build-logs" role="tabpanel">
-                        <ul class="nav nav-pills nav-fill mb-3" id="buildCommandTabs" role="tablist"></ul>
-                        <div class="tab-content" id="buildCommandTabContent"></div>
-                    </div>
-                    <div class="tab-pane fade" id="start-logs" role="tabpanel">
-                        <div class="logs-container" style="max-height:50vh; overflow:auto;">
-                            <pre id="start-logs-content" class="logs-content p-3"></pre>
+    <!-- Tentacle Logs Modal -->
+    <div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="logsModalLabel">
+                        <i class="bi bi-file-text"></i> Logs for <span id="current-tentacle"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" id="logsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="build-tab" data-bs-toggle="tab"
+                                    data-bs-target="#build-logs" type="button" role="tab">
+                                <i class="bi bi-hammer"></i> Build Logs
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="start-tab" data-bs-toggle="tab" data-bs-target="#start-logs"
+                                    type="button" role="tab">
+                                <i class="bi bi-play-circle"></i> Start Logs
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content mt-3" id="logsTabContent">
+                        <div class="tab-pane fade show active" id="build-logs" role="tabpanel">
+                            <ul class="nav nav-pills nav-fill mb-3" id="buildCommandTabs" role="tablist"></ul>
+                            <div class="tab-content" id="buildCommandTabContent"></div>
+                        </div>
+                        <div class="tab-pane fade" id="start-logs" role="tabpanel">
+                            <div class="logs-container" style="max-height:50vh; overflow:auto;">
+                                <pre id="start-logs-content" class="logs-content p-3"></pre>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button id="refreshLogsBtn" type="button" class="btn btn-outline-secondary" onclick="if(currentTentacle){ loadLogs(currentTentacle,'build'); loadLogs(currentTentacle,'start'); }">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="modal-footer">
+                    <button id="refreshLogsBtn" type="button" class="btn btn-outline-secondary"
+                            onclick="if(currentTentacle){ loadLogs(currentTentacle,'build'); loadLogs(currentTentacle,'start'); }">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+
+    <!-- Restart Modal -->
+    <div class="modal fade" id="restartModal" tabindex="-1" aria-labelledby="restartModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-l">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="restartModalLabel">
+                        <i class="bi bi-file-text"></i> Restart Tentacle <span id="current-tentacle-restart"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p>Are you sure you want to restart tentacle<br>
+                        <b>master</b>?
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button id="restartButtonModal" type="button" class="btn btn-outline-danger"
+                            onclick="restartTentacle(currentTentacle, true)">
+                        <i class="bi bi-arrow-repeat"></i> Clean Restart
+                    </button>
+                    <button id="restartButtonModal" type="button" class="btn btn-outline-warning"
+                            onclick="restartTentacle(currentTentacle, false)">
+                        <i class="bi bi-arrow-repeat"></i> Restart
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-// Initialize tooltips
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl)
-});
-</script>
+    <script>
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+    </script>
 {% endblock %}

@@ -4,9 +4,9 @@ import shutil
 import signal
 import socket
 import subprocess
+import threading
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
-import threading
 
 from git import Repo
 from github.Branch import Branch
@@ -17,7 +17,7 @@ from TentaclePreview.output import log, progress
 
 class Tentacle:
     _broadcast_status = None  # callable(name, build_status, start_status)
-    _broadcast_logs = None    # callable(name, log_type, logs_dict, stream=False)
+    _broadcast_logs = None  # callable(name, log_type, logs_dict, stream=False)
 
     @classmethod
     def set_broadcast_callbacks(cls, logs_callback, status_callback):
@@ -120,11 +120,15 @@ class Tentacle:
             log(f"Failed to clone branch '{self.name}': {e}", "error")
             raise
 
-    # TODO "clean" arg - clears branch folder and clone it again
-    def update(self):
+    def update(self, clean: bool = False):
         self.stop()
 
-        log(f"Updating tentacle '{self.name}'...")
+        if clean:
+            log(f"Updating tentacle '{self.name}' (clean)...")
+            self.clear_files()
+        else:
+            log(f"Updating tentacle '{self.name}'...")
+
         if not self.path.exists() or self.local_repo is None:
             self._clone_repo_from_remote()
         else:
@@ -275,6 +279,12 @@ class Tentacle:
                 log(f"Error while stopping tentacle: {e}", "error")
         else:
             log("No running process to stop.", "info")
+
+        self.is_start_success = None
+        self.is_build_success = None
+
+        if Tentacle._broadcast_status:
+            Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
 
         self._process = None
 

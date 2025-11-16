@@ -16,7 +16,7 @@ app = Flask(__name__, static_folder="tentacle_preview_static")
 
 @app.route('/')
 def main_page():
-    return render_template('index.html', tentacles=tentacle.TENTACLES_LIST)
+    return render_template('index.html')
 
 
 def setup_websocket(app):
@@ -130,6 +130,24 @@ def api_tentacle_logs(tentacle_name, log_type):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/tentacles/<tentacle_name>/restart')
+@app.route('/api/tentacles/<tentacle_name>/restart/<clean>')
+def api_tentacle_restart(tentacle_name, clean='false'):
+    target_tentacle = tentacle.get_tenty_by_name(tentacle_name)
+    if target_tentacle is None:
+        return jsonify({'error': f'Tentacle {tentacle_name} not found'}), 404
+
+    clean = str(clean).lower()
+    if clean not in ['true', 'false']:
+        return jsonify({'error': 'Invalid clean. Must be "true" or "false"'}), 400
+
+    try:
+        target_tentacle.update(clean == 'true')
+        return jsonify({
+            'is_clean': clean,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
