@@ -1,13 +1,15 @@
 // main.js — структура WS-primary, HTTP fallback, построчная отправка логов на фронт.
 
-let logsModal = null;
+let tentacleLogsModal = null;
+let restartTentacleModal = null;
 let currentTentacle = null;
 let socket = null;
 let wsConnected = false;
 const FALLBACK_POLL_INTERVAL_MS = 60_000; // резервный пул — 60s
 
 document.addEventListener("DOMContentLoaded", () => {
-  logsModal = new bootstrap.Modal(document.getElementById("logsModal"));
+  tentacleLogsModal = new bootstrap.Modal(document.getElementById("logsModal"));
+  restartTentacleModal = new bootstrap.Modal(document.getElementById("restartModal"));
 
   const refreshBtn = document.getElementById("refreshButton");
   if (refreshBtn) {
@@ -41,6 +43,12 @@ async function apiGetLogs(tentacleName, logType) {
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const json = await resp.json();
   return json.logs;
+}
+
+async function apiRestartTentacle(tentacleName) {
+  const resp = await fetch(`/api/tentacles/${encodeURIComponent(tentacleName)}/restart`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.json();
 }
 
 /* UI — таблица тентаклей */
@@ -78,7 +86,7 @@ function renderTentacleTable(tentacles) {
     tr.dataset.tentacle = t.name;
 
     tr.innerHTML = `
-      <td>
+      <td class="tr-left">
         <a href="/tentacle/${encodeURIComponent(t.name)}/" class="text-decoration-none fw-bold">
           <i class="bi bi-box-arrow-up-right"></i> ${escapeHtml(t.name)}
         </a>
@@ -94,8 +102,11 @@ function renderTentacleTable(tentacles) {
         <button class="btn btn-sm btn-outline-info logs-btn" data-tentacle="${escapeHtml(t.name)}">
           <i class="bi bi-file-text"></i> Logs
         </button>
+        <button class="btn btn-sm restart-btn" data-tentacle="${escapeHtml(t.name)}">
+          <i class="bi bi-arrow-repeat"></i> Restart
+        </button>
       </td>
-      <td>${escapeHtml(t.last_commit || "")}</td>
+      <td class="tr-left">${escapeHtml(t.last_commit || "")}</td>
     `;
 
     tbody.appendChild(tr);
@@ -104,6 +115,12 @@ function renderTentacleTable(tentacles) {
   tbody.querySelectorAll(".logs-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       viewLogs(btn.dataset.tentacle);
+    });
+  });
+
+  tbody.querySelectorAll(".restart-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      showRestartModal(btn.dataset.tentacle);
     });
   });
 }
@@ -158,7 +175,7 @@ function viewLogs(tentacleName) {
     </div>
   `;
 
-  logsModal.show();
+  tentacleLogsModal.show();
 
   // Load historic logs by HTTP
   loadLogs(tentacleName, "build");
@@ -301,6 +318,25 @@ function appendStartLogLine(line) {
 
   const container = contentElement.parentElement;
   if (container) container.scrollTop = container.scrollHeight;
+}
+
+function showRestartModal(tentacleName) {
+  currentTentacle = tentacleName;
+  const currentSpan = document.getElementById("current-tentacle-restart");
+  if (currentSpan) currentSpan.textContent = tentacleName;
+
+  restartTentacleModal.show();
+}
+
+function restartTentacle(tentacleName) {
+  apiRestartTentacle(tentacleName).then(r => console.log("Restart tentacle " + tentacleName + r.ok ? " OK" : " FAIL"));
+}
+
+function restartButtonModalOnClick(tentacleName) {
+  if (!tentacleName) return
+
+  restartTentacle(tentacleName);
+  restartTentacleModal.hide();
 }
 
 /* WebSocket (Socket.IO) */

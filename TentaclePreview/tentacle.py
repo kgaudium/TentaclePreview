@@ -276,6 +276,12 @@ class Tentacle:
         else:
             log("No running process to stop.", "info")
 
+        self.is_start_success = None
+        self.is_build_success = None
+
+        if Tentacle._broadcast_status:
+            Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
+
         self._process = None
 
     @staticmethod
