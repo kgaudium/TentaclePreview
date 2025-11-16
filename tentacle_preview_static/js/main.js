@@ -45,8 +45,8 @@ async function apiGetLogs(tentacleName, logType) {
   return json.logs;
 }
 
-async function apiRestartTentacle(tentacleName) {
-  const resp = await fetch(`/api/tentacles/${encodeURIComponent(tentacleName)}/restart`);
+async function apiRestartTentacle(tentacleName, isClean) {
+  const resp = await fetch(`/api/tentacles/${encodeURIComponent(tentacleName)}/restart/${isClean}`);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return await resp.json();
 }
@@ -328,14 +328,10 @@ function showRestartModal(tentacleName) {
   restartTentacleModal.show();
 }
 
-function restartTentacle(tentacleName) {
-  apiRestartTentacle(tentacleName).then(r => console.log("Restart tentacle " + tentacleName + r.ok ? " OK" : " FAIL"));
-}
+function restartTentacle(tentacleName, isClean=false) {
+    if (!tentacleName) return
 
-function restartButtonModalOnClick(tentacleName) {
-  if (!tentacleName) return
-
-  restartTentacle(tentacleName);
+  apiRestartTentacle(tentacleName, isClean).then(r => console.log("Restart tentacle " + tentacleName + r.ok ? " OK" : " FAIL"));
   restartTentacleModal.hide();
 }
 

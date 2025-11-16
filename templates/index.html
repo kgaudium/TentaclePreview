@@ -100,8 +100,12 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <button id="restartButtonModal" type="button" class="btn btn-outline-secondary"
-                            onclick="restartButtonModalOnClick(currentTentacle)">
+                    <button id="restartButtonModal" type="button" class="btn btn-outline-danger"
+                            onclick="restartTentacle(currentTentacle, true)">
+                        <i class="bi bi-arrow-repeat"></i> Clean Restart
+                    </button>
+                    <button id="restartButtonModal" type="button" class="btn btn-outline-warning"
+                            onclick="restartTentacle(currentTentacle, false)">
                         <i class="bi bi-arrow-repeat"></i> Restart
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
