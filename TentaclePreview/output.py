@@ -1,8 +1,41 @@
+import enum
+import json
 import sys
 from datetime import datetime
-from typing import List, Literal
+from typing import List, Literal, Callable, Any, Dict
+
+
+class LogType(enum.Enum):
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+    HEADER = "header"
+
+class LogEntry:
+    def __init__(self, message: str, log_type: LogType) -> None:
+        if not isinstance(log_type, LogType):
+            raise TypeError("type must be of type LogType")
+
+        if not isinstance(message, str):
+            raise TypeError("message must be of type str")
+
+        self.message = message
+
+        self.message = message
+        self.log_type = log_type
+        self.time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def __json__(self):
+        return {
+            "message": self.message,
+            "log_type": self.log_type.value,
+            "time": self.time
+        }
 
 ENABLED_LOG_LEVELS: List[Literal["all", "info", "success", "warning", "error", "progressbar"]] | str = "all"
+
+on_log_event: List[Callable[[LogEntry, dict[str, Any]], None]] = []
 
 COLORS = {
     "info": "\033[36m",
@@ -22,19 +55,31 @@ PREFIXES = {
     "header": "📌 [SECTION]\t"
 }
 
-def log(message, status: Literal["info", "success", "warning", "error", "header"] = "info", **kwargs):
+
+def default_log(log_entry :LogEntry, **kwargs :dict[str, Any]) -> None:
+    prefix = PREFIXES.get(log_entry.log_type.value, "ℹ️ [INFO]")
+    color = COLORS.get(log_entry.log_type.value, "\033[36m")
+
+    print(f"{color}{prefix} [{log_entry.time}] {log_entry.message}{COLORS['reset']}", **kwargs)
+
+
+on_log_event.append(default_log)
+
+
+def log(message: str, log_type: LogType | Literal["info", "success", "warning", "error", "header"] = LogType.INFO, **kwargs: Any) -> None:
     global ENABLED_LOG_LEVELS, COLORS, PREFIXES
 
+    if isinstance(log_type, str):
+        log_type = LogType(log_type)
+
     if (ENABLED_LOG_LEVELS != "all") and ("all" not in ENABLED_LOG_LEVELS):
-        if status not in ENABLED_LOG_LEVELS:
+        if log_type.value not in ENABLED_LOG_LEVELS:
             return
 
-    time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = LogEntry(message, log_type)
 
-    prefix = PREFIXES.get(status, "ℹ️ [INFO]")
-    color = COLORS.get(status, "\033[36m")
-
-    print(f"{color}{prefix} [{time_now}] {message}{COLORS['reset']}", **kwargs)
+    for event in on_log_event:
+        event(log_entry, **kwargs)
 
 
 anim = ['\\ ', '| ', '/ ', '- ']

@@ -10,10 +10,20 @@ from TentaclePreview.git_utils import *
 from TentaclePreview.tentacle import Tentacle
 
 TENTACLES_LIST: List[Tentacle] = []
+SYSTEM_LOGS: List[output.LogEntry] = []
 CONFIG: Dict[str, Any] = {}
 GITHUB_INSTANCE: Github | None = None
 REPO: Repository | None = None
 
+def add_system_log(log_entry: output.LogEntry, **kwargs: dict[str, Any]) -> None:
+    global SYSTEM_LOGS
+    SYSTEM_LOGS.append(log_entry)
+
+def system_logs_to_json() -> list[Any]:
+    global SYSTEM_LOGS
+    return list(map(lambda log: log.__json__(), SYSTEM_LOGS))
+
+output.on_log_event.append(add_system_log)
 
 def get_tenty_by_name(name: str) -> Tentacle | None:
     global TENTACLES_LIST
@@ -94,7 +104,7 @@ def start_tentacles() -> None:
         tenty.start()
 
     for tenty in TENTACLES_LIST:
-        output.log(tenty, "header")
+        output.log(str(tenty), "header")
 
 
 def stop_tentacles() -> None:

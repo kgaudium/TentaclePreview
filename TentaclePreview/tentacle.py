@@ -172,7 +172,7 @@ class Tentacle:
                 continue
 
             cmd = self._render_command(raw_cmd)
-            log(f"Running build step: '{cmd}'", status="info")
+            log(f"Running build step: '{cmd}'", log_type="info")
 
             try:
                 result = subprocess.run(
@@ -209,12 +209,12 @@ class Tentacle:
         log(f"Starting tentacle '{self.name}'...")
 
         if self._process and self._process.poll() is None:
-            log(f"Tentacle '{self.name}' is already running.", status="warning")
+            log(f"Tentacle '{self.name}' is already running.", log_type="warning")
             return
 
         raw_cmd = self._commands.get("start")
         if not raw_cmd:
-            log("No start command provided.", status="error")
+            log("No start command provided.", log_type="error")
             return
 
         cmd = self._render_command(raw_cmd)
@@ -239,7 +239,7 @@ class Tentacle:
                 preexec_fn=os.setsid if not is_windows else None
             )
             self.is_start_success = True
-            log(f"Tentacle '{self.name}' started.", status="success")
+            log(f"Tentacle '{self.name}' started.", log_type="success")
 
             if Tentacle._broadcast_status:
                 Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
@@ -252,12 +252,12 @@ class Tentacle:
         except Exception as e:
             self.is_start_success = False
             self.start_output.append(str(e))
-            log(f"Failed to start tentacle:\n{e}", status="error")
+            log(f"Failed to start tentacle:\n{e}", log_type="error")
             if Tentacle._broadcast_status:
                 Tentacle._broadcast_status(self.name, self.is_build_success, self.is_start_success)
 
     def stop(self):
-        log(f"Stopping tentacle '{self.name}'...", status="header")
+        log(f"Stopping tentacle '{self.name}'...", log_type="header")
 
         if self._process and self._process.poll() is None:
             try:

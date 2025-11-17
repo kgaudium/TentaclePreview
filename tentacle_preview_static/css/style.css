@@ -248,3 +248,48 @@ th, tr {
     --bs-btn-disabled-border-color: #2B9AFB;
     --bs-gradient: none;
 }
+
+.system-logs-content {
+  padding: 0.1rem 1rem;
+}
+
+.system-logs-container {
+  padding-top: 10px;
+}
+
+.system-log-line-container {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1rem 0 0.6rem;
+}
+
+.system-log-line-container:hover {
+  background-color: #e3e4e6;
+}
+
+.system-logs-time {
+  margin: 0;
+  color: gray;
+  font-style: italic;
+  font-size: small;
+}
+
+.system-logs-info {
+    color: #2aa1b3; /* или cyan */
+}
+
+.system-logs-success {
+    color: #26a269; /* или green */
+}
+
+.system-logs-warning {
+    color: #a2734c; /* или orange */
+}
+
+.system-logs-error {
+    color: #c01c28; /* или red */
+}
+
+.system-logs-header {
+    color: #c061cb; /* или light purple/pink */
+}

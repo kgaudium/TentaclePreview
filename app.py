@@ -2,6 +2,7 @@ import re
 import signal
 import sys
 import threading
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -10,88 +11,91 @@ from flask_socketio import SocketIO, emit
 
 from TentaclePreview import output
 from TentaclePreview import tentacle_preview as tentacle
+from TentaclePreview.output import LogType
 
 app = Flask(__name__, static_folder="tentacle_preview_static")
-
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/')
 def main_page():
     return render_template('index.html')
 
+@socketio.on('connect')
+def on_connect():
+    output.log('WebSocket: client connected', 'info')
+    emit('connection_status', {'status': 'connected'})
 
-def setup_websocket(app):
-    """
-    Настраивает WebSocket для обмена статусами и логами тентаклей.
-    Возвращает socketio и функции для трансляции событий.
-    """
-    socketio = SocketIO(app, cors_allowed_origins="*")
+@socketio.on('disconnect')
+def on_disconnect():
+    output.log('WebSocket: client disconnected', 'info')
 
-    @socketio.on('connect')
-    def on_connect():
-        output.log('WebSocket: client connected', 'info')
-        emit('connection_status', {'status': 'connected'})
+@socketio.on('request_status')
+def on_request_status():
+    tentacles = [
+        {
+            'name': t.name,
+            'url': t.url,
+            'is_build_success': t.is_build_success,
+            'is_start_success': t.is_start_success,
+            'last_commit': t.last_commit
+        }
+        for t in tentacle.TENTACLES_LIST
+    ]
+    emit('status_update', {'tentacles': tentacles})
 
-    @socketio.on('disconnect')
-    def on_disconnect():
-        output.log('WebSocket: client disconnected', 'info')
+@socketio.on('request_logs')
+def on_request_logs(data):
+    tentacle_name = data.get('tentacle')
+    log_type = data.get('log_type', 'build')
 
-    @socketio.on('request_status')
-    def on_request_status():
-        tentacles = [
-            {
-                'name': t.name,
-                'url': t.url,
-                'is_build_success': t.is_build_success,
-                'is_start_success': t.is_start_success,
-                'last_commit': t.last_commit
-            }
-            for t in tentacle.TENTACLES_LIST
-        ]
-        emit('status_update', {'tentacles': tentacles})
+    tenty = tentacle.get_tenty_by_name(tentacle_name)
+    if not tenty:
+        output.log(f'WebSocket: Tentacle "{tentacle_name}" not found', 'warning')
+        return
 
-    @socketio.on('request_logs')
-    def on_request_logs(data):
-        tentacle_name = data.get('tentacle')
-        log_type = data.get('log_type', 'build')
+    logs = tenty.get_logs(log_type)
+    emit('logs_update', {
+        'tentacle': tentacle_name,
+        'log_type': log_type,
+        'logs': logs,
+        'stream': False
+    })
 
-        tenty = tentacle.get_tenty_by_name(tentacle_name)
-        if not tenty:
-            output.log(f'WebSocket: Tentacle "{tentacle_name}" not found', 'warning')
-            return
+def broadcast_status_update(name, build_status, start_status):
+    try:
+        socketio.emit('status_update', {
+            'tentacle': name,
+            'build_status': build_status,
+            'start_status': start_status
+        })
+        # output.log(f'Broadcast status: {name}, build={build_status}, start={start_status}')
+    except Exception as e:
+        output.log(f'Error broadcasting status: {e}', 'error')
 
-        logs = tenty.get_logs(log_type)
-        emit('logs_update', {
-            'tentacle': tentacle_name,
+def broadcast_logs_update(name, log_type, logs, stream=False):
+    try:
+        socketio.emit('logs_update', {
+            'tentacle': name,
             'log_type': log_type,
             'logs': logs,
-            'stream': False
+            'stream': bool(stream)
         })
+        # output.log(f'Broadcast logs: {name}, type={log_type}, stream={stream}')
+    except Exception as e:
+        output.log(f'Error broadcasting logs: {e}', 'error')
 
-    def broadcast_status_update(name, build_status, start_status):
-        try:
-            socketio.emit('status_update', {
-                'tentacle': name,
-                'build_status': build_status,
-                'start_status': start_status
-            })
-            output.log(f'Broadcast status: {name}, build={build_status}, start={start_status}')
-        except Exception as e:
-            output.log(f'Error broadcasting status: {e}', 'error')
 
-    def broadcast_logs_update(name, log_type, logs, stream=False):
-        try:
-            socketio.emit('logs_update', {
-                'tentacle': name,
-                'log_type': log_type,
-                'logs': logs,
-                'stream': bool(stream)
-            })
-            output.log(f'Broadcast logs: {name}, type={log_type}, stream={stream}')
-        except Exception as e:
-            output.log(f'Error broadcasting logs: {e}', 'error')
+def broadcast_new_system_log(log_entry: output.LogEntry, **kwargs: dict[str, Any]) -> None:
+    global socketio
 
-    return socketio, broadcast_status_update, broadcast_logs_update
-
+    try:
+        socketio.emit('system_logs_update', {
+            'log_type': log_entry.log_type.value,
+            'message': log_entry.message,
+            'time': log_entry.time,
+        })
+    except Exception as e:
+        print(e)
 
 @app.route('/api/tentacles')
 def api_tentacles():
@@ -148,6 +152,11 @@ def api_tentacle_restart(tentacle_name, clean='false'):
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tentacles/system-logs')
+def api_system_logs_get():
+    # TODO add line limit as argument
+    return jsonify({"logs": tentacle.system_logs_to_json()})
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -288,7 +297,7 @@ signal.signal(signal.SIGTERM, graceful_shutdown)
 
 if __name__ == '__main__':
     try:
-        socketio, broadcast_status_update, broadcast_logs_update = setup_websocket(app)
+        output.on_log_event.append(broadcast_new_system_log)
 
         from TentaclePreview.tentacle import Tentacle
         Tentacle.set_broadcast_callbacks(broadcast_logs_update, broadcast_status_update)
