@@ -7,9 +7,15 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1><i class="bi bi-diagram-3"></i> Tentacles Dashboard</h1>
-                <button id="refreshButton" class="btn btn-outline-primary">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
+                <div>
+                    <button id="systemLogsButton" class="btn btn-outline-primary"
+                            style="margin-right: 14px; padding: 6px 21px">
+                        System Logs
+                    </button>
+                    <button id="refreshButton" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
             </div>
 
             <div class="card">
@@ -31,6 +37,62 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Logs Modal -->
+    <div class="modal fade" id="systemLogsModal" tabindex="-1" aria-labelledby="systemLogsModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="systemLogsModalLabel">
+                        <img class="" src="{{ url_for('static', filename='img/logo.png') }}" alt="logo"
+                             style="height: 1.85em; margin-bottom: 0.15em;filter: invert(100%);">
+                        System Logs
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" id="systemLogsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tentaclePreview-tab" data-bs-toggle="tab"
+                                    data-bs-target="#tentaclePreview-logs" type="button" role="tab">
+                                TentaclePreview
+                            </button>
+                        </li>
+{#                        <li class="nav-item" role="presentation">#}
+{#                            <button class="nav-link" id="server-tab" data-bs-toggle="tab" data-bs-target="#start-logs"#}
+{#                                    type="button" role="tab">#}
+{#                                <i class="bi bi-play-circle"></i> Server#}
+{#                            </button>#}
+{#                        </li>#}
+                    </ul>
+                    <div class="tab-content mt-3" id="systemLogsTabContent">
+                        <div class="tab-pane fade show active" id="tentaclePreview-logs" role="tabpanel">
+                            <div class="system-logs-container logs-container" id="tentaclePreview-logs-container" style="max-height:50vh; overflow:auto;">
+                                <pre class="logs-content system-logs-content system-logs-error">No logs available...</pre>
+                                <pre class="logs-content system-logs-content system-logs-grey">No logs available...</pre>
+                                <pre class="logs-content system-logs-content system-logs-header">No logs available...</pre>
+                                <pre class="logs-content system-logs-content system-logs-info">No logs available...</pre>
+                                <pre class="logs-content system-logs-content system-logs-success">No logs available...</pre>
+                                <pre class="logs-content system-logs-content system-logs-warning">No logs available...</pre>
+                            </div>
+                        </div>
+                        {#                        <div class="tab-pane fade" id="server-logs" role="tabpanel">#}
+                        {#                            <div class="logs-container" style="max-height:50vh; overflow:auto;">#}
+                        {#                                <pre id="start-logs-content" class="logs-content p-3"></pre>#}
+                        {#                            </div>#}
+                        {#                        </div>#}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="systemLogsRefreshBtn" type="button" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -74,8 +136,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button id="refreshLogsBtn" type="button" class="btn btn-outline-secondary"
-                            onclick="if(currentTentacle){ loadLogs(currentTentacle,'build'); loadLogs(currentTentacle,'start'); }">
+                    <button id="refreshLogsBtn" type="button" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-clockwise"></i> Refresh
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -100,12 +161,10 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <button id="restartButtonModal" type="button" class="btn btn-outline-danger"
-                            onclick="restartTentacle(currentTentacle, true)">
+                    <button id="restartButtonModalClean" type="button" class="btn btn-outline-danger">
                         <i class="bi bi-arrow-repeat"></i> Clean Restart
                     </button>
-                    <button id="restartButtonModal" type="button" class="btn btn-outline-warning"
-                            onclick="restartTentacle(currentTentacle, false)">
+                    <button id="restartButtonModal" type="button" class="btn btn-outline-warning">
                         <i class="bi bi-arrow-repeat"></i> Restart
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

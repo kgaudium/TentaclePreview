@@ -248,3 +248,35 @@ th, tr {
     --bs-btn-disabled-border-color: #2B9AFB;
     --bs-gradient: none;
 }
+
+.system-logs-content {
+  padding: 0.1rem 1rem;
+}
+
+.system-logs-container {
+  padding-top: 10px;
+}
+
+.system-logs-info {
+    color: #2cb5e9; /* или cyan */
+}
+
+.system-logs-success {
+    color: #39b54a; /* или green */
+}
+
+.system-logs-warning {
+    color: #ffc706; /* или orange */
+}
+
+.system-logs-error {
+    color: #de382b; /* или red */
+}
+
+.system-logs-grey {
+    color: #808080; /* или gray */
+}
+
+.system-logs-header {
+    color: #ff00ff; /* или light purple/pink */
+}
