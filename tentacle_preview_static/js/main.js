@@ -7,6 +7,14 @@ let currentTentacle = null;
 let socket = null;
 let wsConnected = false;
 const FALLBACK_POLL_INTERVAL_MS = 60_000; // резервный пул — 60s
+const ALLOWED_LOG_TYPES = ["info", "success", "warning", "error", "header"];
+const LOG_TYPES_PREFIXES = {
+    "info":     "ℹ️",
+    "success":  "✅",
+    "warning":  "⚠️",
+    "error":    "❌",
+    "header":   "📌"
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     systemLogsModal = new bootstrap.Modal(document.getElementById("systemLogsModal"));
@@ -258,8 +266,7 @@ async function reloadSystemLogs() {
 
     let json = await apiGetSystemLogs();
     json.logs.forEach(function (log, i, _) {
-        console.log(log);
-        addSystemLogLine(log.message, log.log_type);
+        addSystemLogLine(log.message, log.log_type, log.time);
     });
 }
 
@@ -269,40 +276,48 @@ function clearSystemLogs() {
     containerElement.innerHTML = "";
 }
 
-function addSystemLogLine(logLine, status) {
+function addSystemLogLine(message, logType, time) {
     const containerElement = document.getElementById("tentaclePreview-logs-container");
-    if (!logLine) {
+    if (!message) {
         return;
     }
 
-    const newLine = document.createElement('pre');
-    newLine.classList.add("logs-content", "system-logs-content");
+    containerElement.appendChild(getNewLineHtml(message, logType, time));
+    containerElement.scrollTop = containerElement.scrollHeight;
+}
 
-    switch (status) {
-        case "error":
-            newLine.classList.add("system-logs-error");
-            break;
-        case "grey":
-            newLine.classList.add("system-logs-grey");
-            break;
-        case "header":
-            newLine.classList.add("system-logs-header");
-            break;
-        case "success":
-            newLine.classList.add("system-logs-success");
-            break;
-        case "warning":
-            newLine.classList.add("system-logs-warning");
-            break;
-        default:
-            newLine.classList.add("system-logs-info");
-            break;
+function getNewLineHtml(message, logType, time) {
+    if (!ALLOWED_LOG_TYPES.includes(logType)) {
+        logType = "info"
     }
 
-    newLine.textContent = logLine;
+    const container = document.createElement('div')
+    container.classList.add("system-log-line-container");
 
-    containerElement.appendChild(newLine);
-    containerElement.scrollTop = containerElement.scrollHeight;
+    const leftWrapper = document.createElement('div');
+    leftWrapper.style.display = "flex";
+    const logTypeEl = document.createElement('pre');
+    logTypeEl.textContent = LOG_TYPES_PREFIXES[logType]
+    logTypeEl.style.margin = "0";
+    // logTypeEl.style.width = "7rem";
+    const messageEl = document.createElement('pre');
+    messageEl.classList.add("logs-content", "system-logs-content");
+
+    messageEl.classList.add(`system-logs-${logType}`);
+    logTypeEl.classList.add(`system-logs-${logType}`);
+
+    messageEl.textContent = message;
+
+    const timeEl = document.createElement('pre');
+    timeEl.classList.add("system-logs-time");
+    timeEl.textContent = time;
+
+    leftWrapper.appendChild(logTypeEl)
+    leftWrapper.appendChild(messageEl)
+    container.appendChild(leftWrapper);
+    container.appendChild(timeEl);
+
+    return container;
 }
 
 function updateLogsContent(logType, logs) {
@@ -495,8 +510,7 @@ function initWebSocket(forceReconnect = false) {
     });
 
     socket.on("system_logs_update", (log_entry) => {
-        console.log("WS system logs", log_entry);
-        addSystemLogLine(log_entry.message, log_entry.log_type)
+        addSystemLogLine(log_entry.message, log_entry.log_type, log_entry.time)
     })
 }
 

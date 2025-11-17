@@ -11,6 +11,7 @@ from flask_socketio import SocketIO, emit
 
 from TentaclePreview import output
 from TentaclePreview import tentacle_preview as tentacle
+from TentaclePreview.output import LogType
 
 app = Flask(__name__, static_folder="tentacle_preview_static")
 socketio = SocketIO(app, cors_allowed_origins="*")

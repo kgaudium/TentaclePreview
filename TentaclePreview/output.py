@@ -55,6 +55,17 @@ PREFIXES = {
     "header": "📌 [SECTION]\t"
 }
 
+
+def default_log(log_entry :LogEntry, **kwargs :dict[str, Any]) -> None:
+    prefix = PREFIXES.get(log_entry.log_type.value, "ℹ️ [INFO]")
+    color = COLORS.get(log_entry.log_type.value, "\033[36m")
+
+    print(f"{color}{prefix} [{log_entry.time}] {log_entry.message}{COLORS['reset']}", **kwargs)
+
+
+on_log_event.append(default_log)
+
+
 def log(message: str, log_type: LogType | Literal["info", "success", "warning", "error", "header"] = LogType.INFO, **kwargs: Any) -> None:
     global ENABLED_LOG_LEVELS, COLORS, PREFIXES
 
@@ -67,13 +78,8 @@ def log(message: str, log_type: LogType | Literal["info", "success", "warning", 
 
     log_entry = LogEntry(message, log_type)
 
-    prefix = PREFIXES.get(log_type.value, "ℹ️ [INFO]")
-    color = COLORS.get(log_type.value, "\033[36m")
-
     for event in on_log_event:
         event(log_entry, **kwargs)
-
-    print(f"{color}{prefix} [{log_entry.time}] {message}{COLORS['reset']}", **kwargs)
 
 
 anim = ['\\ ', '| ', '/ ', '- ']
