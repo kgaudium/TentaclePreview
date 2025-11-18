@@ -65,27 +65,27 @@ body {
   color: #212529;
 }
 
-.log-entry {
-  margin-bottom: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  background-color: rgba(0, 0, 0, 0.02);
-}
+/*.log-entry {*/
+/*  margin-bottom: 0.5rem;*/
+/*  padding: 0.25rem 0.5rem;*/
+/*  border-radius: 0.25rem;*/
+/*  background-color: rgba(0, 0, 0, 0.02);*/
+/*}*/
 
-.log-entry.error {
-  background-color: rgba(var(--bs-danger-rgb), 0.1);
-  border-left: 3px solid rgb(var(--bs-danger-rgb));
-}
+/*.log-entry.error {*/
+/*  background-color: rgba(var(--bs-danger-rgb), 0.1);*/
+/*  border-left: 3px solid rgb(var(--bs-danger-rgb));*/
+/*}*/
 
-.log-entry.warning {
-  background-color: rgba(var(--bs-warning-rgb), 0.1);
-  border-left: 3px solid rgb(var(--bs-warning-rgb));
-}
+/*.log-entry.warning {*/
+/*  background-color: rgba(var(--bs-warning-rgb), 0.1);*/
+/*  border-left: 3px solid rgb(var(--bs-warning-rgb));*/
+/*}*/
 
-.log-entry.info {
-  background-color: rgba(var(--bs-info-rgb), 0.1);
-  border-left: 3px solid rgb(var(--bs-info-rgb));
-}
+/*.log-entry.info {*/
+/*  background-color: rgba(var(--bs-info-rgb), 0.1);*/
+/*  border-left: 3px solid rgb(var(--bs-info-rgb));*/
+/*}*/
 
 /* Build command tabs styling */
 #buildCommandTabs {
@@ -292,4 +292,22 @@ th, tr {
 
 .system-logs-header {
     color: #c061cb; /* или light purple/pink */
+}
+
+.connection-status-badge {
+    width: 5.6rem;
+    height: 1.4rem;
+    display: flex;
+    align-items: center;
+    padding: 0.49em 0.4em 0.3em 0.85em;
+    justify-content: flex-start;
+}
+
+#connection-status-circle {
+  margin-right: 0.85em;
+  color: #ffffff;
+}
+
+#connection-status-circle[data-online] {
+  color: #54C748;
 }

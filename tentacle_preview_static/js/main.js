@@ -448,6 +448,23 @@ function showRestartModal(tentacleName) {
     restartTentacleModal.show();
 }
 
+/* Websocket status badge */
+
+function toggleConnectionStatusBadge(status) {
+    const circle = document.getElementById("connection-status-circle");
+    const text = document.getElementById("connection-status-text");
+    if (!circle || !text) return;
+
+    if (status === true) {
+        text.textContent = "Online";
+        circle.setAttribute("data-online", "");
+    }
+    else {
+        text.textContent = "Offline";
+        circle.removeAttribute("data-online");
+    }
+}
+
 /* WebSocket (Socket.IO) */
 
 function initWebSocket(forceReconnect = false) {
@@ -460,6 +477,7 @@ function initWebSocket(forceReconnect = false) {
         }
         socket = null;
         wsConnected = false;
+        toggleConnectionStatusBadge(false);
     }
 
     socket = io({transports: ["websocket"]});
@@ -468,11 +486,14 @@ function initWebSocket(forceReconnect = false) {
         wsConnected = true;
         console.info("WS connected");
         socket.emit("request_status");
+        refreshData();
+        toggleConnectionStatusBadge(true);
     });
 
     socket.on("disconnect", () => {
         wsConnected = false;
         console.warn("WS disconnected");
+        toggleConnectionStatusBadge(false);
     });
 
     socket.on("status_update", (data) => {
@@ -507,6 +528,7 @@ function initWebSocket(forceReconnect = false) {
     socket.on("connect_error", (err) => {
         wsConnected = false;
         console.warn("WS connect_error", err);
+        toggleConnectionStatusBadge(false);
     });
 
     socket.on("system_logs_update", (log_entry) => {

@@ -22,12 +22,13 @@ def main_page():
 
 @socketio.on('connect')
 def on_connect():
-    output.log('WebSocket: client connected', 'info')
+    # output.log('WebSocket: client connected', 'info')
     emit('connection_status', {'status': 'connected'})
 
 @socketio.on('disconnect')
 def on_disconnect():
-    output.log('WebSocket: client disconnected', 'info')
+    pass
+    # output.log('WebSocket: client disconnected', 'info')
 
 @socketio.on('request_status')
 def on_request_status():
