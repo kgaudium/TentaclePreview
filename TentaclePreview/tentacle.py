@@ -186,9 +186,11 @@ class Tentacle:
                 stdout = result.stdout or ""
                 stderr = result.stderr or ""
                 if stdout.strip():
-                    log(f"'{cmd}' output:\n{stdout.strip()}", "info")
+                    # log(f"'{cmd}' output:\n{stdout.strip()}", "info")
+                    log(f"'{cmd}' done without errors!", "info")
                 if stderr.strip():
-                    log(f"'{cmd}' errors:\n{stderr.strip()}", "warning")
+                    # log(f"'{cmd}' errors:\n{stderr.strip()}", "warning")
+                    log(f"'{cmd}' done with errors!", "warning")
                 self.build_output.append({"command": cmd, "output": stdout + ("\n" + stderr if stderr else "")})
 
                 if Tentacle._broadcast_logs:
