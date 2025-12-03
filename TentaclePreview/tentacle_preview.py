@@ -147,9 +147,7 @@ def init_webhook() -> None:
     raise NotImplementedError  # add webhook to GITHUB_INSTANCE
 
 
-def init(config_path: str = "./config.json"):
-    output.log(f"Initializing Tentacle Preview...", "header")
-    init_globals(config_path)
+def init():
     output.log("Git Init Stage", "header")
     init_tentacles()
 

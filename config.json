@@ -22,5 +22,10 @@
   "webhook_update": true,
   "auto_add_webhook": true,
   "clear_redundant_local_branches": true,
-  "enabled_log_levels": ["all"]
+  "enabled_log_levels": ["all"],
+
+  "web_app": {
+    "host": "0.0.0.0",
+    "port": 5000
+  }
 }

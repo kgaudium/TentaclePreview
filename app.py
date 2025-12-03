@@ -303,11 +303,15 @@ if __name__ == '__main__':
         from TentaclePreview.tentacle import Tentacle
         Tentacle.set_broadcast_callbacks(broadcast_logs_update, broadcast_status_update)
 
+        output.log(f"Initializing Tentacle Preview...", "header")
         if len(sys.argv) > 1:
-            threading.Thread(target=tentacle.init, args=[sys.argv[1]]).start()
+            tentacle.init_globals(sys.argv[1])
         else:
-            threading.Thread(target=tentacle.init).start()
+            tentacle.init_globals("./config.json")
 
-        socketio.run(app, host="0.0.0.0", port=4999, allow_unsafe_werkzeug=True)
+        threading.Thread(target=tentacle.init).start()
+
+        web_app_settings = tentacle.CONFIG.setdefault("web_app", {"port": 5000, "host": "0.0.0.0"})
+        socketio.run(app, host=web_app_settings["host"], port=web_app_settings["port"], allow_unsafe_werkzeug=True)
     except Exception as e:
         output.log(f"Failed to start server: {e}", "error")
