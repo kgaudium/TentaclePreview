@@ -50,8 +50,8 @@ def delete_tentacle(name: str) -> None:
 
     tenty = get_tenty_by_name(name)
     if tenty:
-        tenty.clear_files()
         TENTACLES_LIST.remove(tenty)
+        tenty.clear_files()
 
 
 def clear_redundant_local_branches(remote_branches: List[Branch]) -> None:

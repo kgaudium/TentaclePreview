@@ -148,6 +148,7 @@ class Tentacle:
         if self._process is not None:
             raise RuntimeError("Cannot delete tentacle files while it's running")
 
+        self.local_repo.close()
         shutil.rmtree(self.path)
 
     def _render_command(self, command: str) -> str:
@@ -208,6 +209,11 @@ class Tentacle:
             log(f"Tentacle '{self.name}' built successfully.", "success")
 
     def start(self):
+        if not self.is_build_success:
+            log(f"Build failed. Start cancelled.", "warning")
+            self.is_start_success = False
+            return
+
         log(f"Starting tentacle '{self.name}'...")
 
         if self._process and self._process.poll() is None:
