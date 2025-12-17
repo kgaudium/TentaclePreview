@@ -18,7 +18,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/')
 def main_page():
-    return render_template('index.html')
+    return render_template('index.html', repo_name=tentacle.CONFIG.get("repo_full_name"))
 
 @socketio.on('connect')
 def on_connect():

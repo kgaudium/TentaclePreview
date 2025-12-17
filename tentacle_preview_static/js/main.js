@@ -37,17 +37,21 @@ document.addEventListener("DOMContentLoaded", () => {
 function registerButtonListeners() {
     const refreshTableBtn = document.getElementById("refreshButton");
     const refreshLogsBtn = document.getElementById("refreshLogsBtn");
+    const tentacleLogsToTopBtn = document.getElementById("tentacleLogsToTopBtn");
     const restartTentacleBtnClean = document.getElementById("restartButtonModalClean");
     const restartTentacleBtn = document.getElementById("restartButtonModal");
     const systemLogsRefreshBtn = document.getElementById("systemLogsRefreshBtn");
     const systemLogsButton = document.getElementById("systemLogsButton");
+    const systemLogsToTopButton = document.getElementById("systemLogsToTopBtn");
 
     if (refreshTableBtn) refreshTableBtn.addEventListener("click", refreshTableButtonOnClick);
     if (refreshLogsBtn) refreshLogsBtn.addEventListener("click", refreshLogsButtonOnClick);
+    if (tentacleLogsToTopBtn) tentacleLogsToTopBtn.addEventListener("click", tentacleLogsToTopButtonOnClick);
     if (restartTentacleBtnClean) restartTentacleBtnClean.addEventListener("click", () => restartTentacleButtonOnClick(currentTentacle, true));
     if (restartTentacleBtn) restartTentacleBtn.addEventListener("click", () => restartTentacleButtonOnClick(currentTentacle, false));
     if (systemLogsButton) systemLogsButton.addEventListener("click", systemLogsButtonOnClick);
     if (systemLogsRefreshBtn) systemLogsRefreshBtn.addEventListener("click", systemLogsRefreshButtonOnClick);
+    if (systemLogsToTopButton) systemLogsToTopButton.addEventListener("click", systemLogsToTopButtonOnClick);
 }
 
 /* Buttons */
@@ -61,6 +65,14 @@ function refreshLogsButtonOnClick() {
 
     loadLogs(currentTentacle, 'build');
     loadLogs(currentTentacle, 'start');
+}
+
+function tentacleLogsToTopButtonOnClick() {
+    scrollToTop('startLogsContainer');
+    const items = document.getElementsByClassName('build-command-content');
+    for (let i = 0; i < items.length; i++) {
+      items[i].scrollTop = 0;
+    }
 }
 
 function restartTentacleButtonOnClick(tentacleName, isClean = false) {
@@ -79,6 +91,10 @@ function systemLogsButtonOnClick() {
 
 function systemLogsRefreshButtonOnClick() {
     reloadSystemLogs().then();
+}
+
+function systemLogsToTopButtonOnClick() {
+    scrollToTop('tentaclePreview-logs-container');
 }
 
 /* HTTP helpers */
@@ -160,10 +176,10 @@ function renderTentacleTable(tentacles) {
       <td>${renderStatusBadge(t.is_build_success)}</td>
       <td>${renderStatusBadge(t.is_start_success)}</td>
       <td>
-        <button class="btn btn-sm btn-outline-info logs-btn" data-tentacle="${escapeHtml(t.name)}">
+        <button class="btn btn-sm btn-outline-primary logs-btn" data-tentacle="${escapeHtml(t.name)}">
           <i class="bi bi-file-text"></i> Logs
         </button>
-        <button class="btn btn-sm restart-btn" data-tentacle="${escapeHtml(t.name)}">
+        <button class="btn btn-sm btn-outline-primary" data-tentacle="${escapeHtml(t.name)}">
           <i class="bi bi-arrow-repeat"></i> Restart
         </button>
       </td>
@@ -200,6 +216,11 @@ function updateTentacleStatus(tentacleName, buildStatus, startStatus) {
 }
 
 /* Logs UI */
+
+function scrollToTop(divId) {
+    const logsDiv = document.getElementById(divId);
+    logsDiv.scrollTop = 0;
+}
 
 function viewLogs(tentacleName) {
     currentTentacle = tentacleName;
@@ -443,7 +464,9 @@ function appendStartLogLine(line) {
 function showRestartModal(tentacleName) {
     currentTentacle = tentacleName;
     const currentSpan = document.getElementById("current-tentacle-restart");
+    const currentText = document.getElementById("restartModalTentacleNameText");
     if (currentSpan) currentSpan.textContent = tentacleName;
+    if (currentText) currentText.textContent = tentacleName;
 
     restartTentacleModal.show();
 }
@@ -503,6 +526,7 @@ function initWebSocket(forceReconnect = false) {
         } else if (data.tentacle) {
             updateTentacleStatus(data.tentacle, data.build_status, data.start_status);
         }
+        refreshData();
     });
 
     socket.on("logs_update", (data) => {
