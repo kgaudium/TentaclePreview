@@ -179,7 +179,7 @@ function renderTentacleTable(tentacles) {
         <button class="btn btn-sm btn-outline-primary logs-btn" data-tentacle="${escapeHtml(t.name)}">
           <i class="bi bi-file-text"></i> Logs
         </button>
-        <button class="btn btn-sm btn-outline-primary" data-tentacle="${escapeHtml(t.name)}">
+        <button class="btn btn-sm btn-outline-primary restart-btn" data-tentacle="${escapeHtml(t.name)}">
           <i class="bi bi-arrow-repeat"></i> Restart
         </button>
       </td>
