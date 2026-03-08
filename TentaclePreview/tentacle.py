@@ -12,6 +12,7 @@ from git import Repo
 from github.Branch import Branch
 from github.Repository import Repository
 
+from TentaclePreview.filesystem_utils import safe_rmtree
 from TentaclePreview.output import log, progress
 
 
@@ -149,7 +150,10 @@ class Tentacle:
             raise RuntimeError("Cannot delete tentacle files while it's running")
 
         self.local_repo.close()
-        shutil.rmtree(self.path)
+        if safe_rmtree(str(self.path)):
+            log("Tentacle '{self.name}' deleted", "success")
+        else:
+            log(f"Failed to delete tentacle '{self.name}' after multiple attempts!", "error")
 
     def _render_command(self, command: str) -> str:
         try:

@@ -1,6 +1,6 @@
 import json
 import os
-import shutil
+from TentaclePreview.filesystem_utils import safe_rmtree
 from typing import Any, Dict
 
 from github import Github
@@ -57,10 +57,11 @@ def delete_tentacle(name: str) -> None:
 def clear_redundant_local_branches(remote_branches: List[Branch]) -> None:
     global CONFIG
 
-    output.log(f"Clearing redundant local branches", "info")
+    output.log("Clearing redundant local branches", "info")
 
     branches_dir = CONFIG["branches_dir"]
     if not os.path.exists(branches_dir):
+        output.log("Branches directory does not exist. Skip clearing...", "info")
         return
 
     local_branches = [
@@ -73,11 +74,11 @@ def clear_redundant_local_branches(remote_branches: List[Branch]) -> None:
     for branch in local_branches:
         if branch not in remote_branches_names:
             branch_path = os.path.join(branches_dir, branch)
-            try:
-                shutil.rmtree(branch_path)
+            output.log(f"Attempting to delete local branch {branch}", "info")
+            if safe_rmtree(branch_path):
                 output.log(f"Local branch {branch} deleted", "success")
-            except Exception as e:
-                output.log(f"Error occurred while deleting local branch {branch}: {e}", "error")
+            else:
+                output.log(f"Failed to delete local branch {branch} after multiple attempts", "error")
 
 
 def init_tentacles() -> None:
