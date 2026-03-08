@@ -151,7 +151,7 @@ class Tentacle:
 
         self.local_repo.close()
         if safe_rmtree(str(self.path)):
-            log("Tentacle '{self.name}' deleted", "success")
+            log(f"Tentacle '{self.name}' deleted", "success")
         else:
             log(f"Failed to delete tentacle '{self.name}' after multiple attempts!", "error")
 
